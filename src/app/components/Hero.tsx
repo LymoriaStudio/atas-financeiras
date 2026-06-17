@@ -1,5 +1,5 @@
 import { Search, ChevronRight } from "lucide-react";
-import womanPhoto from "../../imports/magnific__retire-o-bluer-da-imagem__83344.png";
+import bannerPhoto from "../../imports/banner-hero.webp";
 
 const GRADIENT = "linear-gradient(to right, #4F46A0, #E8926B)";
 
@@ -11,7 +11,7 @@ export function Hero() {
     >
       {/* Imagem de fundo cobrindo todo o hero */}
       <img
-        src={womanPhoto}
+        src={bannerPhoto}
         alt="Profissional sorrindo em ambiente corporativo arborizado"
         className="absolute inset-0 w-full h-full object-cover object-center"
       />
