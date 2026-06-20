@@ -1,4 +1,4 @@
-footerimport { Mail, Phone, MapPin } from "lucide-react";
+import { Mail, Phone, MapPin } from "lucide-react";
 import vegasLogo from "../../imports/Ativo_1_4x.png";
 
 export function Footer() {
