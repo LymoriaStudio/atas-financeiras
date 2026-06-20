@@ -1,4 +1,4 @@
-import { Mail, Phone, MapPin } from "lucide-react";
+footerimport { Mail, Phone, MapPin } from "lucide-react";
 import vegasLogo from "../../imports/Ativo_1_4x.png";
 
 export function Footer() {
@@ -41,10 +41,7 @@ export function Footer() {
             </h3>
 
             <p className="text-gray-400 text-sm leading-relaxed">
-              Plataforma digital para consulta, organização e acompanhamento
-              de atas, documentos administrativos e registros oficiais,
-              promovendo transparência, acessibilidade e gestão eficiente
-              das informações.
+              Portal de transparência para consulta de atas e documentos públicos de forma organizada e segura.
             </p>
           </div>
 
