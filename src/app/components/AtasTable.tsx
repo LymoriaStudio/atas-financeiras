@@ -13,7 +13,7 @@ interface AtasTableProps {
 
 export function AtasTable({ onVerTodas }: AtasTableProps) {
   return (
-    <section className="py-16 bg-gray-50">
+    <section id="consultarapida" className="py-16 bg-gray-50">
       <div className="max-w-7xl mx-auto px-6 flex flex-col items-center text-center">
 
         <div className="mb-8">
