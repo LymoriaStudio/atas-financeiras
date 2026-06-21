@@ -144,13 +144,14 @@ export function SearchAndAtas({ onVerTodas }: Props) {
               : "Últimas Atas publicadas"}
           </p>
           {!isFiltering && (
-            <p className="text-gray-400 text-xs">Confira os documentos mais recentes</p>
+            <p className="text-gray-400 text-xs hidden sm:block">Confira os documentos mais recentes</p>
           )}
         </div>
 
-        {/* Table */}
+        {/* Listing: tabela no desktop (md+), cards no mobile */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden w-full">
-          <div className="grid grid-cols-12 px-6 py-3.5 border-b border-gray-100 bg-gray-50/80 text-left">
+          {/* Table header — apenas desktop */}
+          <div className="hidden md:grid grid-cols-12 px-6 py-3.5 border-b border-gray-100 bg-gray-50/80 text-left">
             <div className="col-span-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Nº da ATA</div>
             <div className="col-span-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Título</div>
             <div className="col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Categoria</div>
@@ -172,49 +173,106 @@ export function SearchAndAtas({ onVerTodas }: Props) {
               const deps = toArray((ata as any).categoria_id);
               const file = getLatestFile(ata);
               return (
-                <div key={ata.id} className="grid grid-cols-12 px-6 py-4 border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors items-center text-left">
-                  <div className="col-span-3 text-gray-800 text-sm font-medium">{ata.numero}</div>
-                  <div className="col-span-4 text-gray-500 text-sm truncate pr-4">{ata.titulo}</div>
-                  <div className="col-span-2 flex flex-wrap gap-1">
-                    {deps.length === 0 ? (
-                      <span className="text-gray-300 text-xs">—</span>
-                    ) : (
-                      deps.map((id) => {
-                        const cat = categoriaMap[id];
-                        if (!cat) return null;
-                        return (
-                          <span
-                            key={id}
-                            className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium"
-                            style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
-                          >
-                            {cat.name}
-                          </span>
-                        );
-                      })
-                    )}
+                <div key={ata.id} className="border-b border-gray-50 last:border-0">
+                  {/* ── Linha desktop (tabela) ── */}
+                  <div className="hidden md:grid grid-cols-12 px-6 py-4 hover:bg-gray-50/60 transition-colors items-center text-left">
+                    <div className="col-span-3 text-gray-800 text-sm font-medium">{ata.numero}</div>
+                    <div className="col-span-4 text-gray-500 text-sm truncate pr-4">{ata.titulo}</div>
+                    <div className="col-span-2 flex flex-wrap gap-1">
+                      {deps.length === 0 ? (
+                        <span className="text-gray-300 text-xs">—</span>
+                      ) : (
+                        deps.map((id) => {
+                          const cat = categoriaMap[id];
+                          if (!cat) return null;
+                          return (
+                            <span
+                              key={id}
+                              className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium"
+                              style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
+                            >
+                              {cat.name}
+                            </span>
+                          );
+                        })
+                      )}
+                    </div>
+                    <div className="col-span-2 text-gray-500 text-sm">{formatDateBR(ata.data)}</div>
+                    <div className="col-span-1 flex items-center gap-1">
+                      <button
+                        onClick={() => file && window.open(file.url, "_blank")}
+                        disabled={!file}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={file ? "Visualizar" : "Sem arquivo"}
+                      >
+                        <Eye size={14} />
+                      </button>
+                      <a
+                        href={file?.url}
+                        download={file?.nome}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => { if (!file) e.preventDefault(); }}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors ${!file ? "opacity-30 cursor-not-allowed" : ""}`}
+                        title={file ? "Baixar" : "Sem arquivo"}
+                      >
+                        <Download size={14} />
+                      </a>
+                    </div>
                   </div>
-                  <div className="col-span-2 text-gray-500 text-sm">{formatDateBR(ata.data)}</div>
-                  <div className="col-span-1 flex items-center gap-1">
-                    <button
-                      onClick={() => file && window.open(file.url, "_blank")}
-                      disabled={!file}
-                      className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                      title={file ? "Visualizar" : "Sem arquivo"}
-                    >
-                      <Eye size={14} />
-                    </button>
-                    <a
-                      href={file?.url}
-                      download={file?.nome}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(e) => { if (!file) e.preventDefault(); }}
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors ${!file ? "opacity-30 cursor-not-allowed" : ""}`}
-                      title={file ? "Baixar" : "Sem arquivo"}
-                    >
-                      <Download size={14} />
-                    </a>
+
+                  {/* ── Card mobile ── */}
+                  <div className="md:hidden px-4 py-4 hover:bg-gray-50/60 transition-colors">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="min-w-0">
+                        <p className="text-gray-800 text-sm font-semibold">{ata.numero}</p>
+                        <p className="text-gray-500 text-sm mt-0.5 leading-snug">{ata.titulo}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => file && window.open(file.url, "_blank")}
+                          disabled={!file}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          title={file ? "Visualizar" : "Sem arquivo"}
+                        >
+                          <Eye size={15} />
+                        </button>
+                        <a
+                          href={file?.url}
+                          download={file?.nome}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => { if (!file) e.preventDefault(); }}
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors ${!file ? "opacity-30 cursor-not-allowed" : ""}`}
+                          title={file ? "Baixar" : "Sem arquivo"}
+                        >
+                          <Download size={15} />
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 mt-2">
+                      <div className="flex flex-wrap gap-1">
+                        {deps.length === 0 ? (
+                          <span className="text-gray-300 text-xs">—</span>
+                        ) : (
+                          deps.map((id) => {
+                            const cat = categoriaMap[id];
+                            if (!cat) return null;
+                            return (
+                              <span
+                                key={id}
+                                className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium"
+                                style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
+                              >
+                                {cat.name}
+                              </span>
+                            );
+                          })
+                        )}
+                      </div>
+                      <span className="text-gray-400 text-xs shrink-0">{formatDateBR(ata.data)}</span>
+                    </div>
                   </div>
                 </div>
               );

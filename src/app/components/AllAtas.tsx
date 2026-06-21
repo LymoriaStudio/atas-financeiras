@@ -325,15 +325,16 @@ export function AllAtas({ onBack }: AllAtasProps) {
           <p className="text-gray-400 text-sm">
             <span className="font-semibold text-gray-700">{sorted.length}</span> documento{sorted.length !== 1 ? "s" : ""} encontrado{sorted.length !== 1 ? "s" : ""}
           </p>
-          <div className="flex items-center gap-1 text-gray-400 text-xs">
+          <div className="hidden sm:flex items-center gap-1 text-gray-400 text-xs">
             <SlidersHorizontal size={13} />
             <span>Ordenado por data</span>
           </div>
         </div>
 
-        {/* Table */}
+        {/* Listing: tabela no desktop (md+), cards no mobile */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden w-full max-w-5xl">
-          <div className="grid grid-cols-12 px-6 py-4 border-b border-gray-100 text-left">
+          {/* Table header — apenas desktop */}
+          <div className="hidden md:grid grid-cols-12 px-6 py-4 border-b border-gray-100 text-left">
             <div className="col-span-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Nº da ATA</div>
             <div className="col-span-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Título</div>
             <div className="col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Categoria</div>
@@ -355,55 +356,106 @@ export function AllAtas({ onBack }: AllAtasProps) {
               const deps = toArray((ata as any).categoria_id);
               const file = getLatestFile(ata);
               return (
-                <div
-                  key={ata.id}
-                  className="grid grid-cols-12 px-6 py-4 border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors items-center text-left"
-                >
-                  <div className="col-span-3">
-                    <span className="text-gray-800 text-sm font-medium">{ata.numero}</span>
+                <div key={ata.id} className="border-b border-gray-50 last:border-0">
+                  {/* ── Linha desktop (tabela) ── */}
+                  <div className="hidden md:grid grid-cols-12 px-6 py-4 hover:bg-gray-50/60 transition-colors items-center text-left">
+                    <div className="col-span-3">
+                      <span className="text-gray-800 text-sm font-medium">{ata.numero}</span>
+                    </div>
+                    <div className="col-span-4">
+                      <span className="text-gray-600 text-sm">{ata.titulo}</span>
+                    </div>
+                    <div className="col-span-2 flex flex-wrap gap-1">
+                      {deps.length === 0 ? (
+                        <span className="text-gray-300 text-xs">—</span>
+                      ) : (
+                        deps.map((id) => {
+                          const cat = categoriaMap[id];
+                          if (!cat) return null;
+                          return (
+                            <span
+                              key={id}
+                              className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
+                              style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
+                            >
+                              {cat.name}
+                            </span>
+                          );
+                        })
+                      )}
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-gray-500 text-sm">{formatDateBR(ata.data)}</span>
+                    </div>
+                    <div className="col-span-1 flex items-center gap-2">
+                      <button
+                        onClick={() => handleView(ata)}
+                        disabled={!file}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={file ? "Visualizar" : "Sem arquivo"}
+                      >
+                        <Eye size={15} />
+                      </button>
+                      <button
+                        onClick={() => handleDownload(ata)}
+                        disabled={!file}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={file ? "Baixar" : "Sem arquivo"}
+                      >
+                        <Download size={15} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="col-span-4">
-                    <span className="text-gray-600 text-sm">{ata.titulo}</span>
-                  </div>
-                  <div className="col-span-2 flex flex-wrap gap-1">
-                    {deps.length === 0 ? (
-                      <span className="text-gray-300 text-xs">—</span>
-                    ) : (
-                      deps.map((id) => {
-                        const cat = categoriaMap[id];
-                        if (!cat) return null;
-                        return (
-                          <span
-                            key={id}
-                            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
-                            style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
-                          >
-                            {cat.name}
-                          </span>
-                        );
-                      })
-                    )}
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-gray-500 text-sm">{formatDateBR(ata.data)}</span>
-                  </div>
-                  <div className="col-span-1 flex items-center gap-2">
-                    <button
-                      onClick={() => handleView(ata)}
-                      disabled={!file}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
-                      title={file ? "Visualizar" : "Sem arquivo"}
-                    >
-                      <Eye size={15} />
-                    </button>
-                    <button
-                      onClick={() => handleDownload(ata)}
-                      disabled={!file}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
-                      title={file ? "Baixar" : "Sem arquivo"}
-                    >
-                      <Download size={15} />
-                    </button>
+
+                  {/* ── Card mobile ── */}
+                  <div className="md:hidden px-4 py-4 hover:bg-gray-50/60 transition-colors">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="min-w-0">
+                        <p className="text-gray-800 text-sm font-semibold">{ata.numero}</p>
+                        <p className="text-gray-600 text-sm mt-0.5 leading-snug">{ata.titulo}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => handleView(ata)}
+                          disabled={!file}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
+                          title={file ? "Visualizar" : "Sem arquivo"}
+                        >
+                          <Eye size={15} />
+                        </button>
+                        <button
+                          onClick={() => handleDownload(ata)}
+                          disabled={!file}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
+                          title={file ? "Baixar" : "Sem arquivo"}
+                        >
+                          <Download size={15} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 mt-2">
+                      <div className="flex flex-wrap gap-1">
+                        {deps.length === 0 ? (
+                          <span className="text-gray-300 text-xs">—</span>
+                        ) : (
+                          deps.map((id) => {
+                            const cat = categoriaMap[id];
+                            if (!cat) return null;
+                            return (
+                              <span
+                                key={id}
+                                className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
+                                style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
+                              >
+                                {cat.name}
+                              </span>
+                            );
+                          })
+                        )}
+                      </div>
+                      <span className="text-gray-400 text-xs shrink-0">{formatDateBR(ata.data)}</span>
+                    </div>
                   </div>
                 </div>
               );

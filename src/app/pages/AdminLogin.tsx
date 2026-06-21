@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Eye, EyeOff, Lock, Mail, ArrowLeft } from "lucide-react";
 import sbsLogo from "../../imports/Ativo_1_4x.png";
 import { supabase } from "../../lib/supabase";
 import { useNavigate } from "react-router";
+import { getAtas } from "../../lib/api/atasService";
+import { getCategorias } from "../../lib/api/categoriasService";
 
 export function AdminLogin() {
   const [email, setEmail] = useState("");
@@ -11,7 +13,21 @@ export function AdminLogin() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Estatísticas reais para o painel lateral
+  const [atasCount, setAtasCount] = useState<number | null>(null);
+  const [categoriasCount, setCategoriasCount] = useState<number | null>(null);
+
   const navigate = useNavigate();
+
+  useEffect(() => {
+    getAtas().then(({ data }) => {
+      if (data) setAtasCount(data.length);
+    });
+
+    getCategorias().then(({ data }) => {
+      if (data) setCategoriasCount(data.length);
+    });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -44,6 +60,14 @@ export function AdminLogin() {
     }
   };
 
+  const currentYear = new Date().getFullYear().toString();
+
+  const stats: [string, string][] = [
+    [atasCount !== null ? atasCount.toString() : "...", "Atas publicadas"],
+    [categoriasCount !== null ? categoriasCount.toString() : "...", "Categorias"],
+    [currentYear, "Ano atual"],
+  ];
+
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: "#F9FAFB" }}>
       {/* Left panel */}
@@ -71,16 +95,14 @@ export function AdminLogin() {
         </div>
 
         <div className="flex gap-6">
-          {[["18", "Atas publicadas"], ["3", "Categorias"], ["2026", "Ano atual"]].map(
-            ([val, label]) => (
-              <div key={label}>
-                <p className="text-white font-bold" style={{ fontSize: "1.5rem" }}>
-                  {val}
-                </p>
-                <p className="text-gray-500 text-xs mt-0.5">{label}</p>
-              </div>
-            )
-          )}
+          {stats.map(([val, label]) => (
+            <div key={label}>
+              <p className="text-white font-bold" style={{ fontSize: "1.5rem" }}>
+                {val}
+              </p>
+              <p className="text-gray-500 text-xs mt-0.5">{label}</p>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -174,11 +196,11 @@ export function AdminLogin() {
             </button>
           </form>
 
-          <p className="text-center text-gray-400 text-xs mt-8">
+          {/* <p className="text-center text-gray-400 text-xs mt-8">
             Credenciais demo:{" "}
             <span className="text-gray-600 font-medium">admin@sbs.com.br</span> /{" "}
             <span className="text-gray-600 font-medium">admin123</span>
-          </p>
+          </p> */}
         </div>
       </div>
     </div>
