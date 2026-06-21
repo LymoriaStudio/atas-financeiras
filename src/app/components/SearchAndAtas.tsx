@@ -1,57 +1,85 @@
-import { useState } from "react";
-import { Search, ChevronDown, Eye, Download, ArrowRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Search, ChevronDown, Eye, Download, ArrowRight, Loader2 } from "lucide-react";
+import { getAtas, type Ata } from "../../lib/api/atasService";
+import { getCategorias, type Categoria } from "../../lib/api/categoriasService";
 
-const ALL_ATAS = [
-  { id: "ATA - 0001/2026.001", title: "Ata da Assembleia Geral Ordinária", category: "Atas", date: "02/01/2026" },
-  { id: "ATA - 0002/2026.002", title: "Balanço Patrimonial – Exercício 2025", category: "Financeiro", date: "15/01/2026" },
-  { id: "ATA - 0003/2026.003", title: "Estatuto Social Consolidado", category: "Estatuto", date: "20/01/2026" },
-  { id: "ATA - 0004/2026.004", title: "Ata da Reunião do Conselho de Administração", category: "Atas", date: "03/02/2026" },
-  { id: "ATA - 0005/2026.005", title: "Demonstrações Financeiras – 1º Trimestre", category: "Financeiro", date: "10/02/2026" },
-  { id: "ATA - 0006/2026.006", title: "Ata da Assembleia Extraordinária", category: "Atas", date: "18/02/2026" },
-  { id: "ATA - 0007/2026.007", title: "Alteração do Estatuto Social – Art. 12", category: "Estatuto", date: "25/02/2026" },
-  { id: "ATA - 0008/2026.008", title: "Relatório de Gestão Financeira", category: "Financeiro", date: "05/03/2026" },
-  { id: "ATA - 0009/2026.009", title: "Ata da Reunião Ordinária – Março", category: "Atas", date: "12/03/2026" },
-  { id: "ATA - 0010/2026.010", title: "Fluxo de Caixa – 1º Bimestre 2026", category: "Financeiro", date: "20/03/2026" },
-  { id: "ATA - 0011/2026.011", title: "Ata da Reunião da Diretoria Executiva", category: "Atas", date: "01/04/2026" },
-  { id: "ATA - 0012/2026.012", title: "Emenda Estatutária – Governança Corporativa", category: "Estatuto", date: "08/04/2026" },
-  { id: "ATA - 0013/2026.013", title: "Demonstrativo de Resultados – 2º Trimestre", category: "Financeiro", date: "15/04/2026" },
-  { id: "ATA - 0014/2026.014", title: "Ata da Assembleia Geral Extraordinária", category: "Atas", date: "22/04/2026" },
-  { id: "ATA - 0015/2026.015", title: "Relatório de Auditoria Interna", category: "Financeiro", date: "30/04/2026" },
-  { id: "ATA - 0016/2026.016", title: "Ata de Reunião – Aprovação de Orçamento", category: "Atas", date: "05/05/2026" },
-  { id: "ATA - 0017/2026.017", title: "Regimento Interno Atualizado", category: "Estatuto", date: "12/05/2026" },
-  { id: "ATA - 0018/2026.018", title: "Balanço Semestral – Junho 2026", category: "Financeiro", date: "20/05/2026" },
-];
-
-const YEARS = ["Todos os anos", "2026", "2025", "2024"];
-const CATEGORIES = ["Todas as categorias", "Financeiro", "Atas", "Estatuto"];
 const PREVIEW_COUNT = 5;
 
-const catStyle: Record<string, { bg: string; text: string }> = {
-  Atas:       { bg: "#EFF6FF", text: "#1D4ED8" },
-  Financeiro: { bg: "#F0FDF4", text: "#15803D" },
-  Estatuto:   { bg: "#FDF4FF", text: "#7E22CE" },
-};
+function formatDateBR(iso: string) {
+  if (!iso) return "";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
+}
+
+// garante array independente do que vier da API
+function toArray(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string" && raw.length) return [raw];
+  return [];
+}
 
 interface Props {
   onVerTodas: () => void;
 }
 
 export function SearchAndAtas({ onVerTodas }: Props) {
-  const [query, setQuery]       = useState("");
-  const [year, setYear]         = useState("Todos os anos");
+  const [atas, setAtas] = useState<Ata[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [query, setQuery] = useState("");
+  const [year, setYear] = useState("Todos os anos");
   const [category, setCategory] = useState("Todas as categorias");
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  async function fetchData() {
+    setLoading(true);
+    const [atasRes, catsRes] = await Promise.all([getAtas(), getCategorias()]);
+    console.log(atasRes)
+    if (!atasRes.error && atasRes.data) {
+      // Página pública: mostra só o que foi publicado
+      const publicadas = atasRes.data.filter((a) => a.status === "Publicado");
+      setAtas(publicadas);
+    }
+
+    if (!catsRes.error && catsRes.data) {
+      setCategorias(catsRes.data);
+    }
+
+    setLoading(false);
+  }
+
+  const categoriaMap = Object.fromEntries(categorias.map((c) => [c.id, c]));
+
+  const YEARS = ["Todos os anos", ...Array.from(
+    new Set(atas.map((a) => a.data?.slice(0, 4)).filter(Boolean))
+  ).sort((a, b) => b.localeCompare(a))];
+
+  const CATEGORIES = ["Todas as categorias", ...categorias.map((c) => c.name)];
 
   const isFiltering = query !== "" || year !== "Todos os anos" || category !== "Todas as categorias";
 
-  const filtered = ALL_ATAS.filter((a) => {
+  const filtered = atas.filter((a) => {
     const q = query.toLowerCase();
-    const matchQ   = q === "" || a.title.toLowerCase().includes(q) || a.id.toLowerCase().includes(q);
-    const matchY   = year === "Todos os anos" || a.date.endsWith(year);
-    const matchCat = category === "Todas as categorias" || a.category === category;
+    const matchQ = q === "" || a.titulo.toLowerCase().includes(q) || a.numero.toLowerCase().includes(q);
+    const matchY = year === "Todos os anos" || a.data?.slice(0, 4) === year;
+    const catIds = toArray((a as any).categoria_id);
+    const matchCat = category === "Todas as categorias" || catIds.some((id) => categoriaMap[id]?.name === category);
     return matchQ && matchY && matchCat;
   });
 
-  const displayed = isFiltering ? filtered : filtered.slice(0, PREVIEW_COUNT);
+  // ordena por data do evento, mais recente primeiro
+  const sorted = [...filtered].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
+
+  const displayed = isFiltering ? sorted : sorted.slice(0, PREVIEW_COUNT);
+
+  const getLatestFile = (ata: Ata) => {
+    if (!ata.arquivos || ata.arquivos.length === 0) return null;
+    return ata.arquivos[ata.arquivos.length - 1];
+  };
 
   return (
     <section id="consultar" className="py-16 bg-gray-50">
@@ -130,30 +158,63 @@ export function SearchAndAtas({ onVerTodas }: Props) {
             <div className="col-span-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Ações</div>
           </div>
 
-          {displayed.length === 0 ? (
+          {loading ? (
+            <div className="py-14 flex items-center justify-center gap-2 text-gray-400 text-sm">
+              <Loader2 size={16} className="animate-spin" />
+              Carregando atas...
+            </div>
+          ) : displayed.length === 0 ? (
             <div className="py-14 text-center text-gray-400 text-sm">
               Nenhum documento encontrado para os filtros selecionados.
             </div>
           ) : (
-            displayed.map((ata, i) => {
-              const cs = catStyle[ata.category] ?? { bg: "#F3F4F6", text: "#374151" };
+            displayed.map((ata) => {
+              const deps = toArray((ata as any).categoria_id);
+              const file = getLatestFile(ata);
               return (
-                <div key={i} className="grid grid-cols-12 px-6 py-4 border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors items-center text-left">
-                  <div className="col-span-3 text-gray-800 text-sm font-medium">{ata.id}</div>
-                  <div className="col-span-4 text-gray-500 text-sm truncate pr-4">{ata.title}</div>
-                  <div className="col-span-2">
-                    <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: cs.bg, color: cs.text }}>
-                      {ata.category}
-                    </span>
+                <div key={ata.id} className="grid grid-cols-12 px-6 py-4 border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors items-center text-left">
+                  <div className="col-span-3 text-gray-800 text-sm font-medium">{ata.numero}</div>
+                  <div className="col-span-4 text-gray-500 text-sm truncate pr-4">{ata.titulo}</div>
+                  <div className="col-span-2 flex flex-wrap gap-1">
+                    {deps.length === 0 ? (
+                      <span className="text-gray-300 text-xs">—</span>
+                    ) : (
+                      deps.map((id) => {
+                        const cat = categoriaMap[id];
+                        if (!cat) return null;
+                        return (
+                          <span
+                            key={id}
+                            className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium"
+                            style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
+                          >
+                            {cat.name}
+                          </span>
+                        );
+                      })
+                    )}
                   </div>
-                  <div className="col-span-2 text-gray-500 text-sm">{ata.date}</div>
+                  <div className="col-span-2 text-gray-500 text-sm">{formatDateBR(ata.data)}</div>
                   <div className="col-span-1 flex items-center gap-1">
-                    <button className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors" title="Visualizar">
+                    <button
+                      onClick={() => file && window.open(file.url, "_blank")}
+                      disabled={!file}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      title={file ? "Visualizar" : "Sem arquivo"}
+                    >
                       <Eye size={14} />
                     </button>
-                    <button className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors" title="Baixar">
+                    <a
+                      href={file?.url}
+                      download={file?.nome}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => { if (!file) e.preventDefault(); }}
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors ${!file ? "opacity-30 cursor-not-allowed" : ""}`}
+                      title={file ? "Baixar" : "Sem arquivo"}
+                    >
                       <Download size={14} />
-                    </button>
+                    </a>
                   </div>
                 </div>
               );

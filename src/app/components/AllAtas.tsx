@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { Eye, Download, Search, ChevronDown, ChevronLeft, ChevronRight, ArrowLeft, SlidersHorizontal, Calendar, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Eye, Download, Search, ChevronDown, ChevronLeft, ChevronRight, ArrowLeft, SlidersHorizontal, Calendar, X, Loader2, FileX } from "lucide-react";
+import { getAtas, incrementDownloads, type Ata } from "../../lib/api/atasService";
+import { getCategorias, type Categoria } from "../../lib/api/categoriasService";
 
 type QuickPeriod = "todos" | "mes" | "trimestre" | "semestre" | "ano";
 const QUICK_PERIODS: { label: string; value: QuickPeriod }[] = [
@@ -9,11 +11,6 @@ const QUICK_PERIODS: { label: string; value: QuickPeriod }[] = [
   { label: "Último semestre", value: "semestre" },
   { label: "Este ano", value: "ano" },
 ];
-
-function parseBR(d: string): Date {
-  const [day, month, year] = d.split("/").map(Number);
-  return new Date(year, month - 1, day);
-}
 
 function quickRange(period: QuickPeriod): { from: string; to: string } {
   const now = new Date();
@@ -27,42 +24,32 @@ function quickRange(period: QuickPeriod): { from: string; to: string } {
   return { from: "", to: "" };
 }
 
-const ALL_ATAS = [
-  { id: "ATA - 0001/2026.001", title: "Ata da Assembleia Geral Ordinária", category: "Atas", date: "02/01/2026" },
-  { id: "ATA - 0002/2026.002", title: "Balanço Patrimonial – Exercício 2025", category: "Financeiro", date: "15/01/2026" },
-  { id: "ATA - 0003/2026.003", title: "Estatuto Social Consolidado", category: "Estatuto", date: "20/01/2026" },
-  { id: "ATA - 0004/2026.004", title: "Ata da Reunião do Conselho de Administração", category: "Atas", date: "03/02/2026" },
-  { id: "ATA - 0005/2026.005", title: "Demonstrações Financeiras – 1º Trimestre", category: "Financeiro", date: "10/02/2026" },
-  { id: "ATA - 0006/2026.006", title: "Ata da Assembleia Extraordinária", category: "Atas", date: "18/02/2026" },
-  { id: "ATA - 0007/2026.007", title: "Alteração do Estatuto Social – Art. 12", category: "Estatuto", date: "25/02/2026" },
-  { id: "ATA - 0008/2026.008", title: "Relatório de Gestão Financeira", category: "Financeiro", date: "05/03/2026" },
-  { id: "ATA - 0009/2026.009", title: "Ata da Reunião Ordinária – Março", category: "Atas", date: "12/03/2026" },
-  { id: "ATA - 0010/2026.010", title: "Fluxo de Caixa – 1º Bimestre 2026", category: "Financeiro", date: "20/03/2026" },
-  { id: "ATA - 0011/2026.011", title: "Ata da Reunião da Diretoria Executiva", category: "Atas", date: "01/04/2026" },
-  { id: "ATA - 0012/2026.012", title: "Emenda Estatutária – Governança Corporativa", category: "Estatuto", date: "08/04/2026" },
-  { id: "ATA - 0013/2026.013", title: "Demonstrativo de Resultados – 2º Trimestre", category: "Financeiro", date: "15/04/2026" },
-  { id: "ATA - 0014/2026.014", title: "Ata da Assembleia Geral Extraordinária", category: "Atas", date: "22/04/2026" },
-  { id: "ATA - 0015/2026.015", title: "Relatório de Auditoria Interna", category: "Financeiro", date: "30/04/2026" },
-  { id: "ATA - 0016/2026.016", title: "Ata de Reunião – Aprovação de Orçamento", category: "Atas", date: "05/05/2026" },
-  { id: "ATA - 0017/2026.017", title: "Regimento Interno Atualizado", category: "Estatuto", date: "12/05/2026" },
-  { id: "ATA - 0018/2026.018", title: "Balanço Semestral – Junho 2026", category: "Financeiro", date: "20/05/2026" },
-];
+function formatDateBR(iso: string) {
+  if (!iso) return "";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
+}
 
-const CATEGORIES = ["Todas", "Financeiro", "Atas", "Estatuto"];
-const YEARS = ["Todos os anos", "2026", "2025", "2024"];
+// garante array independente do que vier da API
+function toArray(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string" && raw.length) return [raw];
+  return [];
+}
+
 const PER_PAGE = 8;
-
-const categoryStyle: Record<string, { bg: string; text: string }> = {
-  Atas:       { bg: "#EFF6FF", text: "#1D4ED8" },
-  Financeiro: { bg: "#F0FDF4", text: "#15803D" },
-  Estatuto:   { bg: "#FDF4FF", text: "#7E22CE" },
-};
 
 interface AllAtasProps {
   onBack: () => void;
 }
 
 export function AllAtas({ onBack }: AllAtasProps) {
+  const [atas, setAtas] = useState<Ata[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [viewingAta, setViewingAta] = useState<Ata | null>(null);
+
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todas");
   const [year, setYear] = useState("Todos os anos");
@@ -71,6 +58,38 @@ export function AllAtas({ onBack }: AllAtasProps) {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [showCustom, setShowCustom] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  async function fetchData() {
+    setLoading(true);
+    setErrorMsg(null);
+    const [atasRes, catsRes] = await Promise.all([getAtas(), getCategorias()]);
+
+    if (atasRes.error) {
+      setErrorMsg("Não foi possível carregar as atas. Tente novamente.");
+    } else {
+      // Público vê apenas documentos publicados
+      const publicadas = (atasRes.data ?? []).filter((a) => a.status === "Publicado");
+      setAtas(publicadas);
+    }
+
+    if (!catsRes.error && catsRes.data) {
+      setCategorias(catsRes.data);
+    }
+
+    setLoading(false);
+  }
+
+  const categoriaMap = Object.fromEntries(categorias.map((c) => [c.id, c]));
+
+  const CATEGORIES = ["Todas", ...categorias.map((c) => c.name)];
+
+  const YEARS = ["Todos os anos", ...Array.from(
+    new Set(atas.map((a) => a.data?.slice(0, 4)).filter(Boolean))
+  ).sort((a, b) => b.localeCompare(a))];
 
   const handleQuick = (p: QuickPeriod) => {
     setQuickPeriod(p); setShowCustom(false); setPage(1);
@@ -89,24 +108,58 @@ export function AllAtas({ onBack }: AllAtasProps) {
 
   const hasDateFilter = !!(fromDate || toDate);
 
-  const filtered = ALL_ATAS.filter((a) => {
-    const matchQuery = query === "" || a.title.toLowerCase().includes(query.toLowerCase()) || a.id.toLowerCase().includes(query.toLowerCase());
-    const matchCat = category === "Todas" || a.category === category;
-    const matchYear = year === "Todos os anos" || a.date.includes(year.slice(2));
-    const d = parseBR(a.date).getTime();
+  const filtered = atas.filter((a) => {
+    const q = query.toLowerCase();
+    const matchQuery = q === "" || a.titulo.toLowerCase().includes(q) || a.numero.toLowerCase().includes(q);
+
+    const catIds = toArray((a as any).categoria_id);
+    const matchCat = category === "Todas" || catIds.some((id) => categoriaMap[id]?.name === category);
+
+    const matchYear = year === "Todos os anos" || a.data?.slice(0, 4) === year;
+
+    const d = a.data ? new Date(a.data).getTime() : 0;
     const matchDate = !hasDateFilter ||
       ((!fromDate || d >= new Date(fromDate).getTime()) && (!toDate || d <= new Date(toDate).getTime()));
+
     return matchQuery && matchCat && matchYear && matchDate;
   });
 
-  const totalPages = Math.ceil(filtered.length / PER_PAGE);
-  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  // ordena por data do evento, mais recente primeiro
+  const sorted = [...filtered].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
+
+  const totalPages = Math.ceil(sorted.length / PER_PAGE);
+  const paginated = sorted.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const handleFilter = (key: string, value: string) => {
     setPage(1);
     if (key === "category") setCategory(value);
     if (key === "year") setYear(value);
   };
+
+  const getLatestFile = (ata: Ata) => {
+    if (!ata.arquivos || ata.arquivos.length === 0) return null;
+    return ata.arquivos[ata.arquivos.length - 1];
+  };
+
+  const handleView = (ata: Ata) => {
+    setViewingAta(ata);
+  };
+
+  const handleDownload = async (ata: Ata) => {
+    const file = getLatestFile(ata);
+    if (!file) return;
+
+    // abre o download imediatamente, sem esperar a contagem
+    window.open(file.url, "_blank");
+
+    // incrementa o contador de downloads (otimista no front)
+    const { data, error } = await incrementDownloads(ata.id, ata.downloads_count ?? 0);
+    if (!error && data) {
+      setAtas((prev) => prev.map((a) => (a.id === ata.id ? data : a)));
+    }
+  };
+
+  const viewingFile = viewingAta ? getLatestFile(viewingAta) : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -261,10 +314,16 @@ export function AllAtas({ onBack }: AllAtasProps) {
           )}
         </div>
 
+        {errorMsg && (
+          <div className="w-full max-w-5xl mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">
+            {errorMsg}
+          </div>
+        )}
+
         {/* Count */}
         <div className="w-full max-w-5xl mb-4 flex items-center justify-between">
           <p className="text-gray-400 text-sm">
-            <span className="font-semibold text-gray-700">{filtered.length}</span> documento{filtered.length !== 1 ? "s" : ""} encontrado{filtered.length !== 1 ? "s" : ""}
+            <span className="font-semibold text-gray-700">{sorted.length}</span> documento{sorted.length !== 1 ? "s" : ""} encontrado{sorted.length !== 1 ? "s" : ""}
           </p>
           <div className="flex items-center gap-1 text-gray-400 text-xs">
             <SlidersHorizontal size={13} />
@@ -282,40 +341,67 @@ export function AllAtas({ onBack }: AllAtasProps) {
             <div className="col-span-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Ações</div>
           </div>
 
-          {paginated.length === 0 ? (
+          {loading ? (
+            <div className="py-20 flex items-center justify-center gap-2 text-gray-400 text-sm">
+              <Loader2 size={16} className="animate-spin" />
+              Carregando atas...
+            </div>
+          ) : paginated.length === 0 ? (
             <div className="py-20 text-center text-gray-400 text-sm">
               Nenhum documento encontrado para os filtros selecionados.
             </div>
           ) : (
-            paginated.map((ata, i) => {
-              const style = categoryStyle[ata.category] ?? { bg: "#F3F4F6", text: "#374151" };
+            paginated.map((ata) => {
+              const deps = toArray((ata as any).categoria_id);
+              const file = getLatestFile(ata);
               return (
                 <div
-                  key={i}
+                  key={ata.id}
                   className="grid grid-cols-12 px-6 py-4 border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors items-center text-left"
                 >
                   <div className="col-span-3">
-                    <span className="text-gray-800 text-sm font-medium">{ata.id}</span>
+                    <span className="text-gray-800 text-sm font-medium">{ata.numero}</span>
                   </div>
                   <div className="col-span-4">
-                    <span className="text-gray-600 text-sm">{ata.title}</span>
+                    <span className="text-gray-600 text-sm">{ata.titulo}</span>
+                  </div>
+                  <div className="col-span-2 flex flex-wrap gap-1">
+                    {deps.length === 0 ? (
+                      <span className="text-gray-300 text-xs">—</span>
+                    ) : (
+                      deps.map((id) => {
+                        const cat = categoriaMap[id];
+                        if (!cat) return null;
+                        return (
+                          <span
+                            key={id}
+                            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
+                            style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
+                          >
+                            {cat.name}
+                          </span>
+                        );
+                      })
+                    )}
                   </div>
                   <div className="col-span-2">
-                    <span
-                      className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
-                      style={{ backgroundColor: style.bg, color: style.text }}
-                    >
-                      {ata.category}
-                    </span>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-gray-500 text-sm">{ata.date}</span>
+                    <span className="text-gray-500 text-sm">{formatDateBR(ata.data)}</span>
                   </div>
                   <div className="col-span-1 flex items-center gap-2">
-                    <button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-800" title="Visualizar">
+                    <button
+                      onClick={() => handleView(ata)}
+                      disabled={!file}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title={file ? "Visualizar" : "Sem arquivo"}
+                    >
                       <Eye size={15} />
                     </button>
-                    <button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-800" title="Baixar">
+                    <button
+                      onClick={() => handleDownload(ata)}
+                      disabled={!file}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title={file ? "Baixar" : "Sem arquivo"}
+                    >
                       <Download size={15} />
                     </button>
                   </div>
@@ -361,6 +447,52 @@ export function AllAtas({ onBack }: AllAtasProps) {
           </div>
         )}
       </div>
+
+      {/* View (PDF) Modal */}
+      {viewingAta && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}>
+          <div className="bg-white rounded-2xl w-full max-w-4xl h-[90vh] shadow-2xl flex flex-col overflow-hidden">
+
+            <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-gray-100 shrink-0">
+              <div className="min-w-0">
+                <p className="text-gray-700 text-xs font-semibold truncate">{viewingAta.numero}</p>
+                <p style={{ color: "#111827", fontWeight: 700 }} className="text-sm truncate">{viewingAta.titulo}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {viewingFile && (
+                  <button
+                    onClick={() => handleDownload(viewingAta)}
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                    title="Baixar PDF"
+                  >
+                    <Download size={14} />
+                    <span className="hidden sm:inline">Baixar</span>
+                  </button>
+                )}
+                <button onClick={() => setViewingAta(null)} className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-gray-100">
+              {viewingFile ? (
+                <iframe
+                  src={viewingFile.url}
+                  title={`PDF de ${viewingAta.titulo}`}
+                  className="w-full h-full"
+                  style={{ border: "none" }}
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-gray-400">
+                  <FileX size={32} />
+                  <p className="text-sm">Nenhum arquivo anexado a esta ata.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
