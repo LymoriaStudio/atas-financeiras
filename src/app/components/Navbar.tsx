@@ -1,12 +1,13 @@
 import { LogIn, Menu, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import vegasLogo from "../../imports/Ativo_1_4x.png";
+import { Link } from "react-router";
 
 interface NavbarProps {
   onAdminClick?: () => void;
 }
 
-export function Navbar({ onAdminClick }: NavbarProps) {
+export function Navbar({ onAdminClick, isContato }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -36,14 +37,15 @@ export function Navbar({ onAdminClick }: NavbarProps) {
     <nav
       className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
       style={{
-        backgroundColor: scrolled ? "rgba(255,255,255,0.97)" : "transparent",
-        boxShadow: scrolled ? "0 1px 16px rgba(0,0,0,0.08)" : "none",
-        backdropFilter: scrolled ? "blur(12px)" : "none",
+        backgroundColor: scrolled || isContato ? "rgba(255,255,255,0.97)" : "transparent",
+        boxShadow: scrolled || isContato? "0 1px 16px rgba(0,0,0,0.08)" : "none",
+        backdropFilter: scrolled || isContato? "blur(12px)" : "none",
       }}
     >
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         {/* Logo Vegas */}
         <div className="flex items-center">
+          <Link to="/">
           <img
             src={vegasLogo}
             alt="Vegas"
@@ -51,11 +53,12 @@ export function Navbar({ onAdminClick }: NavbarProps) {
             style={{
               height: "44px",
               width: "auto",
-              filter: scrolled
+              filter: scrolled || isContato
                 ? "brightness(0) saturate(0)"
                 : "brightness(1) drop-shadow(0 1px 6px rgba(0,0,0,0.6))",
             }}
           />
+          </Link>
         </div>
 
         {/* Desktop Links */}
@@ -65,7 +68,7 @@ export function Navbar({ onAdminClick }: NavbarProps) {
               key={link.label}
               onClick={() => scrollTo(link.anchor)}
               className="text-sm transition-colors duration-300 hover:opacity-70 bg-transparent border-none cursor-pointer"
-              style={{ color: scrolled ? "#374151" : "rgba(255,255,255,0.9)" }}
+              style={{ color: scrolled || isContato ? "#374151" : "rgba(255,255,255,0.9)" }}
             >
               {link.label}
             </button>
@@ -78,7 +81,7 @@ export function Navbar({ onAdminClick }: NavbarProps) {
             onClick={onAdminClick}
             className="flex items-center gap-2 text-sm px-5 py-2.5 rounded-lg transition-all duration-300"
             style={
-              scrolled
+              scrolled || isContato
                 ? { backgroundColor: "#111827", color: "#ffffff" }
                 : {
                     backgroundColor: "rgba(255,255,255,0.15)",

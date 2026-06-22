@@ -1,12 +1,13 @@
 import { Mail, Phone, MapPin } from "lucide-react";
 import vegasLogo from "../../imports/Ativo_1_4x.png";
+import { Link } from "react-router";
 
 export function Footer() {
   const quickLinks = [
     { label: "Início", href: "#home" },
-    { label: "Sobre o Projeto", href: "#sobre" },
-    { label: "Consultar Atas", href: "#consultar" },
-    { label: "Contato", href: "#contato" },
+    { label: "Sobre o Projeto", href: "sobre" },
+    { label: "Consultar Atas", href: "consultar" },
+    { label: "Contato", href: "/contato" },
   ];
 
   const categoryLinks = [
@@ -51,18 +52,35 @@ export function Footer() {
               Navegação
             </h4>
 
-            <ul className="space-y-3">
-              {quickLinks.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    className="text-gray-400 hover:text-white transition-colors text-sm"
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
+       <ul className="space-y-3">
+  {quickLinks.map((link) => (
+    <li key={link.label}>
+      {link.href.startsWith("/") ? (
+
+        <a
+          href={link.href}
+          className="text-gray-400 hover:text-white transition-colors text-sm"
+        >
+          {link.label}
+        </a>
+      ) : (
+        // Scroll suave para âncora na home
+        <button
+          onClick={() => {
+            if (window.location.pathname !== "/") {
+              window.location.href = `/#${link.href}`;
+            } else {
+              document.getElementById(link.href)?.scrollIntoView({ behavior: "smooth" });
+            }
+          }}
+          className="text-gray-400 hover:text-white transition-colors text-sm bg-transparent border-none cursor-pointer p-0"
+        >
+          {link.label}
+        </button>
+      )}
+    </li>
+  ))}
+</ul>
           </div>
 
           {/* Categorias */}

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Eye, Download, Search, ChevronDown, ChevronLeft, ChevronRight, ArrowLeft, SlidersHorizontal, Calendar, X, Loader2, FileX } from "lucide-react";
 import { getAtas, incrementDownloads, type Ata } from "../../lib/api/atasService";
-import { getCategorias, type Categoria } from "../../lib/api/categoriasService";
 
 type QuickPeriod = "todos" | "mes" | "trimestre" | "semestre" | "ano";
 const QUICK_PERIODS: { label: string; value: QuickPeriod }[] = [
@@ -30,11 +29,16 @@ function formatDateBR(iso: string) {
   return `${d}/${m}/${y}`;
 }
 
-// garante array independente do que vier da API
-function toArray(raw: unknown): string[] {
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw === "string" && raw.length) return [raw];
-  return [];
+function getTipoStyle(tipo: string): { backgroundColor: string; color: string } {
+  const map: Record<string, { backgroundColor: string; color: string }> = {
+    "Atas":           { backgroundColor: "#EFF6FF", color: "#3B82F6" },
+    "Financeiro":     { backgroundColor: "#F0FDF4", color: "#22C55E" },
+    "Estatuto":       { backgroundColor: "#FAF5FF", color: "#A855F7" },
+    "Administrativo": { backgroundColor: "#FFF7ED", color: "#F97316" },
+    "Contratos":      { backgroundColor: "#FFF1F2", color: "#F43F5E" },
+    "Reuniões":       { backgroundColor: "#F0FDFA", color: "#14B8A6" },
+  };
+  return map[tipo] ?? { backgroundColor: "#11182715", color: "#111827" };
 }
 
 const PER_PAGE = 8;
@@ -45,7 +49,6 @@ interface AllAtasProps {
 
 export function AllAtas({ onBack }: AllAtasProps) {
   const [atas, setAtas] = useState<Ata[]>([]);
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [viewingAta, setViewingAta] = useState<Ata | null>(null);
@@ -66,26 +69,22 @@ export function AllAtas({ onBack }: AllAtasProps) {
   async function fetchData() {
     setLoading(true);
     setErrorMsg(null);
-    const [atasRes, catsRes] = await Promise.all([getAtas(), getCategorias()]);
+    const atasRes = await getAtas();
 
     if (atasRes.error) {
       setErrorMsg("Não foi possível carregar as atas. Tente novamente.");
     } else {
-      // Público vê apenas documentos publicados
       const publicadas = (atasRes.data ?? []).filter((a) => a.status === "Publicado");
       setAtas(publicadas);
-    }
-
-    if (!catsRes.error && catsRes.data) {
-      setCategorias(catsRes.data);
     }
 
     setLoading(false);
   }
 
-  const categoriaMap = Object.fromEntries(categorias.map((c) => [c.id, c]));
-
-  const CATEGORIES = ["Todas", ...categorias.map((c) => c.name)];
+  const CATEGORIES = [
+    "Todas",
+    ...Array.from(new Set(atas.map((a) => (a as any).tipo).filter(Boolean))).sort(),
+  ];
 
   const YEARS = ["Todos os anos", ...Array.from(
     new Set(atas.map((a) => a.data?.slice(0, 4)).filter(Boolean))
@@ -112,8 +111,8 @@ export function AllAtas({ onBack }: AllAtasProps) {
     const q = query.toLowerCase();
     const matchQuery = q === "" || a.titulo.toLowerCase().includes(q) || a.numero.toLowerCase().includes(q);
 
-    const catIds = toArray((a as any).categoria_id);
-    const matchCat = category === "Todas" || catIds.some((id) => categoriaMap[id]?.name === category);
+    const tipo = (a as any).tipo ?? "";
+    const matchCat = category === "Todas" || tipo === category;
 
     const matchYear = year === "Todos os anos" || a.data?.slice(0, 4) === year;
 
@@ -124,7 +123,6 @@ export function AllAtas({ onBack }: AllAtasProps) {
     return matchQuery && matchCat && matchYear && matchDate;
   });
 
-  // ordena por data do evento, mais recente primeiro
   const sorted = [...filtered].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
 
   const totalPages = Math.ceil(sorted.length / PER_PAGE);
@@ -141,18 +139,12 @@ export function AllAtas({ onBack }: AllAtasProps) {
     return ata.arquivos[ata.arquivos.length - 1];
   };
 
-  const handleView = (ata: Ata) => {
-    setViewingAta(ata);
-  };
+  const handleView = (ata: Ata) => setViewingAta(ata);
 
   const handleDownload = async (ata: Ata) => {
     const file = getLatestFile(ata);
     if (!file) return;
-
-    // abre o download imediatamente, sem esperar a contagem
     window.open(file.url, "_blank");
-
-    // incrementa o contador de downloads (otimista no front)
     const { data, error } = await incrementDownloads(ata.id, ata.downloads_count ?? 0);
     if (!error && data) {
       setAtas((prev) => prev.map((a) => (a.id === ata.id ? data : a)));
@@ -331,7 +323,7 @@ export function AllAtas({ onBack }: AllAtasProps) {
           </div>
         </div>
 
-        {/* Listing: tabela no desktop (md+), cards no mobile */}
+        {/* Listing */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden w-full max-w-5xl">
           {/* Table header — apenas desktop */}
           <div className="hidden md:grid grid-cols-12 px-6 py-4 border-b border-gray-100 text-left">
@@ -353,11 +345,11 @@ export function AllAtas({ onBack }: AllAtasProps) {
             </div>
           ) : (
             paginated.map((ata) => {
-              const deps = toArray((ata as any).categoria_id);
+              const tipo = (ata as any).tipo ?? "";
               const file = getLatestFile(ata);
               return (
                 <div key={ata.id} className="border-b border-gray-50 last:border-0">
-                  {/* ── Linha desktop (tabela) ── */}
+                  {/* ── Linha desktop ── */}
                   <div className="hidden md:grid grid-cols-12 px-6 py-4 hover:bg-gray-50/60 transition-colors items-center text-left">
                     <div className="col-span-3">
                       <span className="text-gray-800 text-sm font-medium">{ata.numero}</span>
@@ -366,22 +358,15 @@ export function AllAtas({ onBack }: AllAtasProps) {
                       <span className="text-gray-600 text-sm">{ata.titulo}</span>
                     </div>
                     <div className="col-span-2 flex flex-wrap gap-1">
-                      {deps.length === 0 ? (
-                        <span className="text-gray-300 text-xs">—</span>
+                      {tipo ? (
+                        <span
+                          className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
+                          style={getTipoStyle(tipo)}
+                        >
+                          {tipo}
+                        </span>
                       ) : (
-                        deps.map((id) => {
-                          const cat = categoriaMap[id];
-                          if (!cat) return null;
-                          return (
-                            <span
-                              key={id}
-                              className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
-                              style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
-                            >
-                              {cat.name}
-                            </span>
-                          );
-                        })
+                        <span className="text-gray-300 text-xs">—</span>
                       )}
                     </div>
                     <div className="col-span-2">
@@ -436,22 +421,15 @@ export function AllAtas({ onBack }: AllAtasProps) {
 
                     <div className="flex items-center justify-between gap-2 mt-2">
                       <div className="flex flex-wrap gap-1">
-                        {deps.length === 0 ? (
-                          <span className="text-gray-300 text-xs">—</span>
+                        {tipo ? (
+                          <span
+                            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
+                            style={getTipoStyle(tipo)}
+                          >
+                            {tipo}
+                          </span>
                         ) : (
-                          deps.map((id) => {
-                            const cat = categoriaMap[id];
-                            if (!cat) return null;
-                            return (
-                              <span
-                                key={id}
-                                className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
-                                style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
-                              >
-                                {cat.name}
-                              </span>
-                            );
-                          })
+                          <span className="text-gray-300 text-xs">—</span>
                         )}
                       </div>
                       <span className="text-gray-400 text-xs shrink-0">{formatDateBR(ata.data)}</span>

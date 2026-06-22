@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Search, ChevronDown, Eye, Download, ArrowRight, Loader2 } from "lucide-react";
 import { getAtas, type Ata } from "../../lib/api/atasService";
-import { getCategorias, type Categoria } from "../../lib/api/categoriasService";
 
 const PREVIEW_COUNT = 5;
 
@@ -11,20 +10,25 @@ function formatDateBR(iso: string) {
   return `${d}/${m}/${y}`;
 }
 
-// garante array independente do que vier da API
-function toArray(raw: unknown): string[] {
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw === "string" && raw.length) return [raw];
-  return [];
-}
-
 interface Props {
   onVerTodas: () => void;
 }
 
+function getTipoStyle(tipo: string): { backgroundColor: string; color: string } {
+  const map: Record<string, { backgroundColor: string; color: string }> = {
+    "Atas":        { backgroundColor: "#EFF6FF", color: "#3B82F6" }, // azul
+    "Financeiro":  { backgroundColor: "#F0FDF4", color: "#22C55E" }, // verde
+    "Estatuto":    { backgroundColor: "#FAF5FF", color: "#A855F7" }, // roxo
+    "Administrativo": { backgroundColor: "#FFF7ED", color: "#F97316" }, // laranja
+    "Contratos":   { backgroundColor: "#FFF1F2", color: "#F43F5E" }, // vermelho
+    "Reuniões":    { backgroundColor: "#F0FDFA", color: "#14B8A6" }, // teal
+  };
+
+  return map[tipo] ?? { backgroundColor: "#11182715", color: "#111827" }; // fallback cinza
+}
+
 export function SearchAndAtas({ onVerTodas }: Props) {
   const [atas, setAtas] = useState<Ata[]>([]);
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [query, setQuery] = useState("");
@@ -37,28 +41,22 @@ export function SearchAndAtas({ onVerTodas }: Props) {
 
   async function fetchData() {
     setLoading(true);
-    const [atasRes, catsRes] = await Promise.all([getAtas(), getCategorias()]);
-    console.log(atasRes)
+    const atasRes = await getAtas();
     if (!atasRes.error && atasRes.data) {
-      // Página pública: mostra só o que foi publicado
       const publicadas = atasRes.data.filter((a) => a.status === "Publicado");
       setAtas(publicadas);
     }
-
-    if (!catsRes.error && catsRes.data) {
-      setCategorias(catsRes.data);
-    }
-
     setLoading(false);
   }
-
-  const categoriaMap = Object.fromEntries(categorias.map((c) => [c.id, c]));
 
   const YEARS = ["Todos os anos", ...Array.from(
     new Set(atas.map((a) => a.data?.slice(0, 4)).filter(Boolean))
   ).sort((a, b) => b.localeCompare(a))];
 
-  const CATEGORIES = ["Todas as categorias", ...categorias.map((c) => c.name)];
+  const CATEGORIES = [
+    "Todas as categorias",
+    ...Array.from(new Set(atas.map((a) => (a as any).tipo).filter(Boolean))).sort(),
+  ];
 
   const isFiltering = query !== "" || year !== "Todos os anos" || category !== "Todas as categorias";
 
@@ -66,14 +64,12 @@ export function SearchAndAtas({ onVerTodas }: Props) {
     const q = query.toLowerCase();
     const matchQ = q === "" || a.titulo.toLowerCase().includes(q) || a.numero.toLowerCase().includes(q);
     const matchY = year === "Todos os anos" || a.data?.slice(0, 4) === year;
-    const catIds = toArray((a as any).categoria_id);
-    const matchCat = category === "Todas as categorias" || catIds.some((id) => categoriaMap[id]?.name === category);
+    const tipo = (a as any).tipo ?? "";
+    const matchCat = category === "Todas as categorias" || tipo === category;
     return matchQ && matchY && matchCat;
   });
 
-  // ordena por data do evento, mais recente primeiro
   const sorted = [...filtered].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
-
   const displayed = isFiltering ? sorted : sorted.slice(0, PREVIEW_COUNT);
 
   const getLatestFile = (ata: Ata) => {
@@ -148,7 +144,7 @@ export function SearchAndAtas({ onVerTodas }: Props) {
           )}
         </div>
 
-        {/* Listing: tabela no desktop (md+), cards no mobile */}
+        {/* Listing */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden w-full">
           {/* Table header — apenas desktop */}
           <div className="hidden md:grid grid-cols-12 px-6 py-3.5 border-b border-gray-100 bg-gray-50/80 text-left">
@@ -170,31 +166,24 @@ export function SearchAndAtas({ onVerTodas }: Props) {
             </div>
           ) : (
             displayed.map((ata) => {
-              const deps = toArray((ata as any).categoria_id);
+              const tipo = (ata as any).tipo ?? "";
               const file = getLatestFile(ata);
               return (
                 <div key={ata.id} className="border-b border-gray-50 last:border-0">
-                  {/* ── Linha desktop (tabela) ── */}
+                  {/* ── Linha desktop ── */}
                   <div className="hidden md:grid grid-cols-12 px-6 py-4 hover:bg-gray-50/60 transition-colors items-center text-left">
                     <div className="col-span-3 text-gray-800 text-sm font-medium">{ata.numero}</div>
                     <div className="col-span-4 text-gray-500 text-sm truncate pr-4">{ata.titulo}</div>
                     <div className="col-span-2 flex flex-wrap gap-1">
-                      {deps.length === 0 ? (
-                        <span className="text-gray-300 text-xs">—</span>
+                      {tipo ? (
+                        <span
+                          className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium"
+                          style={getTipoStyle(tipo)}
+                        >
+                          {tipo}
+                        </span>
                       ) : (
-                        deps.map((id) => {
-                          const cat = categoriaMap[id];
-                          if (!cat) return null;
-                          return (
-                            <span
-                              key={id}
-                              className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium"
-                              style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
-                            >
-                              {cat.name}
-                            </span>
-                          );
-                        })
+                        <span className="text-gray-300 text-xs">—</span>
                       )}
                     </div>
                     <div className="col-span-2 text-gray-500 text-sm">{formatDateBR(ata.data)}</div>
@@ -253,22 +242,15 @@ export function SearchAndAtas({ onVerTodas }: Props) {
 
                     <div className="flex items-center justify-between gap-2 mt-2">
                       <div className="flex flex-wrap gap-1">
-                        {deps.length === 0 ? (
-                          <span className="text-gray-300 text-xs">—</span>
+                        {tipo ? (
+                          <span
+                            className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium"
+                            style={{ backgroundColor: "#11182715", color: "#111827" }}
+                          >
+                            {tipo}
+                          </span>
                         ) : (
-                          deps.map((id) => {
-                            const cat = categoriaMap[id];
-                            if (!cat) return null;
-                            return (
-                              <span
-                                key={id}
-                                className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium"
-                                style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
-                              >
-                                {cat.name}
-                              </span>
-                            );
-                          })
+                          <span className="text-gray-300 text-xs">—</span>
                         )}
                       </div>
                       <span className="text-gray-400 text-xs shrink-0">{formatDateBR(ata.data)}</span>
@@ -292,8 +274,10 @@ export function SearchAndAtas({ onVerTodas }: Props) {
         )}
 
         {isFiltering && filtered.length === 0 && (
-          <button onClick={() => { setQuery(""); setYear("Todos os anos"); setCategory("Todas as categorias"); }}
-            className="mt-4 text-xs text-gray-400 hover:text-gray-700 transition-colors underline underline-offset-2">
+          <button
+            onClick={() => { setQuery(""); setYear("Todos os anos"); setCategory("Todas as categorias"); }}
+            className="mt-4 text-xs text-gray-400 hover:text-gray-700 transition-colors underline underline-offset-2"
+          >
             Limpar filtros
           </button>
         )}

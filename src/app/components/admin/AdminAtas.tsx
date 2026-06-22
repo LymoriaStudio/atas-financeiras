@@ -4,7 +4,7 @@ import { getAtas, createAta, updateAta, deleteAta, type Ata } from "../../../lib
 import { uploadAtaFile } from "../../../lib/api/storageService";
 import { getCategorias, type Categoria } from "../../../lib/api/categoriasService";
 
-const TIPOS = ["Estatuto", "Financeiro", "Assembleia", "Conselho", "Administrativo"];
+const TIPOS = ["Estatuto", "Financeiro", "Atas"];
 
 type ModalMode = "add" | "edit" | null;
 
