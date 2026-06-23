@@ -23,7 +23,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     title: "Documentos",
     items: [
       { label: "Atas", path: "/admin/atas", icon: <FileText className="w-4 h-4" /> },
-      { label: "Departamentos", path: "/admin/categorias", icon: <FolderTree className="w-4 h-4" /> },
+      { label: "Categorias", path: "/admin/categorias", icon: <FolderTree className="w-4 h-4" /> },
      // { label: "Uploads", path: "/admin/uploads", icon: <UploadCloud className="w-4 h-4" /> },
      // { label: "Lixeira", path: "/admin/lixeira", icon: <Trash2 className="w-4 h-4" /> },
     ],

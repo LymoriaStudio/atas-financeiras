@@ -104,9 +104,8 @@ export function AdminDashboard() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm mt-0.5">
-            Visão geral do Portal de{" "}
-            <span style={{ color: "#F97316" }}>Transparência</span>
+          <p className="text-gray-400 text-sm mt-1">
+            Visão geral do Portal de Transparência
           </p>
         </div>
         <button
