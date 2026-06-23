@@ -165,7 +165,7 @@ export function AdminCategories() {
     <div className="p-4">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
-          <h1 style={{ color: "#111827", fontSize: "1.5rem", fontWeight: 700 }}>Departamentos</h1>
+          <h1 style={{ color: "#111827", fontSize: "1.5rem", fontWeight: 700 }}>Categorias</h1>
           <p className="text-gray-400 text-sm mt-1">Gerencie as categorias de classificação dos documentos</p>
         </div>
         <button
@@ -174,7 +174,7 @@ export function AdminCategories() {
           style={{ backgroundColor: "#111827" }}
         >
           <Plus size={16} />
-          Novo Departamento
+          Nova Categoria
         </button>
       </div>
 
