@@ -22,7 +22,7 @@ export function Contato({ onAdminClick, onBack }: Props) {
 
   return (
     <div className="min-h-screen w-full flex flex-col">
-      <Navbar onAdminClick={onAdminClick ?? (() => {})} isContato />
+      <Navbar onAdminClick={onAdminClick ?? (() => { })} isContato />
 
       <main className="flex-1 bg-gray-50 py-16 mt-15">
         <div className="max-w-5xl mx-auto px-6">
@@ -33,12 +33,8 @@ export function Contato({ onAdminClick, onBack }: Props) {
               className="mb-2"
               style={{ color: "#111827", fontSize: "1.75rem", fontWeight: 700 }}
             >
-              Fale com a nossa equipe
+              Contato
             </h2>
-            <p className="text-gray-400 text-sm">
-              Tem dúvidas sobre as publicações, precisa de suporte com os documentos ou quer
-              enviar uma sugestão? Entre em contato conosco.
-            </p>
           </div>
 
           {/* Two-column layout */}
