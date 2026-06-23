@@ -5,7 +5,7 @@ import { AdminLogin } from "./pages/AdminLogin";
 import { AdminPanel } from "./pages/AdminPanel";
 import { AdminAtas } from "./components/admin/AdminAtas";
 import { AdminDashboard } from "./components/admin/AdminDashboard";
-import { AdminCategories } from "./components/admin/AdminCategories";
+import { AdminCategories } from "./components/admin/AdminDepartaments";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 export const router = createBrowserRouter([

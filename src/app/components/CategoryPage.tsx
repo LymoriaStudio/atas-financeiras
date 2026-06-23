@@ -1,32 +1,40 @@
-import { useState } from "react";
-import { ArrowLeft, Eye, Download, Search, BarChart2, FileText, Gavel, Calendar, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, Eye, Download, Search, BarChart2, FileText, Gavel, Calendar, X, Loader2 } from "lucide-react";
+import { getAtas, type Ata } from "../../lib/api/atasService";
 
-const ALL_DOCS = [
-  { id: "ATA - 0001/2026.001", title: "Ata da Assembleia Geral Ordinária", category: "Atas", date: "02/01/2026" },
-  { id: "ATA - 0002/2026.002", title: "Balanço Patrimonial – Exercício 2025", category: "Financeiro", date: "15/01/2026" },
-  { id: "ATA - 0003/2026.003", title: "Estatuto Social Consolidado", category: "Estatuto", date: "20/01/2026" },
-  { id: "ATA - 0004/2026.004", title: "Ata da Reunião do Conselho de Administração", category: "Atas", date: "03/02/2026" },
-  { id: "ATA - 0005/2026.005", title: "Demonstrações Financeiras – 1º Trimestre", category: "Financeiro", date: "10/02/2026" },
-  { id: "ATA - 0006/2026.006", title: "Ata da Assembleia Extraordinária", category: "Atas", date: "18/02/2026" },
-  { id: "ATA - 0007/2026.007", title: "Alteração do Estatuto Social – Art. 12", category: "Estatuto", date: "25/02/2026" },
-  { id: "ATA - 0008/2026.008", title: "Relatório de Gestão Financeira", category: "Financeiro", date: "05/03/2026" },
-  { id: "ATA - 0009/2026.009", title: "Ata da Reunião Ordinária – Março", category: "Atas", date: "12/03/2026" },
-  { id: "ATA - 0010/2026.010", title: "Fluxo de Caixa – 1º Bimestre 2026", category: "Financeiro", date: "20/03/2026" },
-  { id: "ATA - 0011/2026.011", title: "Ata da Reunião da Diretoria Executiva", category: "Atas", date: "01/04/2026" },
-  { id: "ATA - 0012/2026.012", title: "Emenda Estatutária – Governança Corporativa", category: "Estatuto", date: "08/04/2026" },
-  { id: "ATA - 0013/2026.013", title: "Demonstrativo de Resultados – 2º Trimestre", category: "Financeiro", date: "15/04/2026" },
-  { id: "ATA - 0014/2026.014", title: "Ata da Assembleia Geral Extraordinária", category: "Atas", date: "22/04/2026" },
-  { id: "ATA - 0015/2026.015", title: "Relatório de Auditoria Interna", category: "Financeiro", date: "30/04/2026" },
-  { id: "ATA - 0016/2026.016", title: "Ata de Reunião – Aprovação de Orçamento", category: "Atas", date: "05/05/2026" },
-  { id: "ATA - 0017/2026.017", title: "Regimento Interno Atualizado", category: "Estatuto", date: "12/05/2026" },
-  { id: "ATA - 0018/2026.018", title: "Balanço Semestral – Junho 2026", category: "Financeiro", date: "20/05/2026" },
-];
-
+// Metadados visuais por tipo — ajuste as chaves para bater com os valores do campo `tipo` na API
 const META: Record<string, { icon: React.ReactNode; color: string; bg: string; description: string }> = {
-  Financeiro: { icon: <BarChart2 size={28} />, color: "#15803D", bg: "#F0FDF4", description: "Balanços, demonstrativos financeiros, fluxos de caixa e relatórios de gestão." },
-  Atas:       { icon: <FileText size={28} />, color: "#1D4ED8", bg: "#EFF6FF", description: "Atas de assembleias gerais, reuniões ordinárias e extraordinárias da diretoria." },
-  Estatuto:   { icon: <Gavel size={28} />, color: "#7E22CE", bg: "#FDF4FF", description: "Estatuto social, regimento interno, emendas e normas institucionais." },
+  Financeiro: {
+    icon: <BarChart2 size={28} />,
+    color: "#15803D",
+    bg: "#F0FDF4",
+    description: "Balanços, demonstrativos financeiros, fluxos de caixa e relatórios de gestão.",
+  },
+  Atas: {
+    icon: <FileText size={28} />,
+    color: "#1D4ED8",
+    bg: "#EFF6FF",
+    description: "Atas de assembleias gerais, reuniões ordinárias e extraordinárias da diretoria.",
+  },
+  Estatuto: {
+    icon: <Gavel size={28} />,
+    color: "#7E22CE",
+    bg: "#FDF4FF",
+    description: "Estatuto social, regimento interno, emendas e normas institucionais.",
+  },
 };
+
+// Fallback para tipos sem metadado definido
+function getMeta(tipo: string) {
+  return (
+    META[tipo] ?? {
+      icon: <FileText size={28} />,
+      color: "#111827",
+      bg: "#F9FAFB",
+      description: `Documentos da categoria ${tipo}.`,
+    }
+  );
+}
 
 type QuickPeriod = "todos" | "mes" | "trimestre" | "semestre" | "ano";
 
@@ -38,48 +46,22 @@ const QUICK_PERIODS: { label: string; value: QuickPeriod }[] = [
   { label: "Este ano", value: "ano" },
 ];
 
-function parseBR(d: string): Date {
-  const [day, month, year] = d.split("/").map(Number);
-  return new Date(year, month - 1, day);
-}
-
-function toISO(d: string): string {
-  const [day, month, year] = d.split("/");
-  return `${year}-${month}-${day}`;
-}
-
-function inRange(docDate: string, from: string, to: string): boolean {
-  const d = parseBR(docDate).getTime();
-  const f = from ? new Date(from).getTime() : -Infinity;
-  const t = to   ? new Date(to).getTime()   : Infinity;
-  return d >= f && d <= t;
-}
-
 function quickRange(period: QuickPeriod): { from: string; to: string } {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const today = iso(now);
-
-  if (period === "mes") {
-    const from = new Date(now.getFullYear(), now.getMonth(), 1);
-    return { from: iso(from), to: today };
-  }
-  if (period === "trimestre") {
-    const from = new Date(now);
-    from.setMonth(from.getMonth() - 3);
-    return { from: iso(from), to: today };
-  }
-  if (period === "semestre") {
-    const from = new Date(now);
-    from.setMonth(from.getMonth() - 6);
-    return { from: iso(from), to: today };
-  }
-  if (period === "ano") {
-    const from = new Date(now.getFullYear(), 0, 1);
-    return { from: iso(from), to: today };
-  }
+  if (period === "mes") return { from: iso(new Date(now.getFullYear(), now.getMonth(), 1)), to: today };
+  if (period === "trimestre") { const f = new Date(now); f.setMonth(f.getMonth() - 3); return { from: iso(f), to: today }; }
+  if (period === "semestre") { const f = new Date(now); f.setMonth(f.getMonth() - 6); return { from: iso(f), to: today }; }
+  if (period === "ano") return { from: iso(new Date(now.getFullYear(), 0, 1)), to: today };
   return { from: "", to: "" };
+}
+
+function formatDateBR(iso: string) {
+  if (!iso) return "";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
 }
 
 interface CategoryPageProps {
@@ -88,13 +70,36 @@ interface CategoryPageProps {
 }
 
 export function CategoryPage({ category, onBack }: CategoryPageProps) {
-  const [query, setQuery]           = useState("");
+  const [atas, setAtas] = useState<Ata[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const [query, setQuery] = useState("");
   const [quickPeriod, setQuickPeriod] = useState<QuickPeriod>("todos");
-  const [fromDate, setFromDate]     = useState("");
-  const [toDate, setToDate]         = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [showCustom, setShowCustom] = useState(false);
 
-  const meta = META[category];
+  const meta = getMeta(category);
+
+  useEffect(() => {
+    fetchData();
+  }, [category]);
+
+  async function fetchData() {
+    setLoading(true);
+    setErrorMsg(null);
+    const atasRes = await getAtas();
+    if (atasRes.error) {
+      setErrorMsg("Não foi possível carregar os documentos. Tente novamente.");
+    } else {
+      const publicadas = (atasRes.data ?? []).filter(
+        (a) => a.status === "Publicado" && (a as any).tipo === category
+      );
+      setAtas(publicadas);
+    }
+    setLoading(false);
+  }
 
   const handleQuick = (p: QuickPeriod) => {
     setQuickPeriod(p);
@@ -118,21 +123,39 @@ export function CategoryPage({ category, onBack }: CategoryPageProps) {
     setShowCustom(false);
   };
 
-  const hasDateFilter = fromDate || toDate;
+  const hasDateFilter = !!(fromDate || toDate);
 
-  const docs = ALL_DOCS.filter((d) => {
-    const matchCat   = d.category === category;
-    const matchQuery = query === "" || d.title.toLowerCase().includes(query.toLowerCase()) || d.id.toLowerCase().includes(query.toLowerCase());
-    const matchDate  = !hasDateFilter || inRange(d.date, fromDate, toDate);
-    return matchCat && matchQuery && matchDate;
+  const getLatestFile = (ata: Ata) => {
+    if (!ata.arquivos || ata.arquivos.length === 0) return null;
+    return ata.arquivos[ata.arquivos.length - 1];
+  };
+
+  const filtered = atas.filter((a) => {
+    const matchQuery =
+      query === "" ||
+      a.titulo.toLowerCase().includes(query.toLowerCase()) ||
+      a.numero.toLowerCase().includes(query.toLowerCase());
+
+    const d = a.data ? new Date(a.data).getTime() : 0;
+    const matchDate =
+      !hasDateFilter ||
+      ((!fromDate || d >= new Date(fromDate).getTime()) &&
+        (!toDate || d <= new Date(toDate).getTime()));
+
+    return matchQuery && matchDate;
   });
+
+  const sorted = [...filtered].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top bar */}
       <div className="bg-white border-b border-gray-100 sticky top-0 z-40">
         <div className="max-w-3xl mx-auto px-6 h-14 flex items-center gap-3">
-          <button onClick={onBack} className="flex items-center gap-2 text-gray-400 hover:text-gray-800 text-sm transition-colors">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 text-gray-400 hover:text-gray-800 text-sm transition-colors"
+          >
             <ArrowLeft size={15} /> Voltar
           </button>
           <span className="text-gray-200">|</span>
@@ -146,14 +169,24 @@ export function CategoryPage({ category, onBack }: CategoryPageProps) {
 
         {/* Header */}
         <div className="flex flex-col items-center text-center mb-10">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5" style={{ backgroundColor: meta.bg, color: meta.color }}>
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
+            style={{ backgroundColor: meta.bg, color: meta.color }}
+          >
             {meta.icon}
           </div>
-          <h1 style={{ color: "#111827", fontSize: "2rem", fontWeight: 700 }} className="mb-2">{category}</h1>
+          <h1 style={{ color: "#111827", fontSize: "2rem", fontWeight: 700 }} className="mb-2">
+            {category}
+          </h1>
           <p className="text-gray-400 text-sm max-w-md leading-relaxed">{meta.description}</p>
-          <span className="mt-4 inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold" style={{ backgroundColor: meta.bg, color: meta.color }}>
-            {docs.length} documento{docs.length !== 1 ? "s" : ""}
-          </span>
+          {!loading && (
+            <span
+              className="mt-4 inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold"
+              style={{ backgroundColor: meta.bg, color: meta.color }}
+            >
+              {sorted.length} documento{sorted.length !== 1 ? "s" : ""}
+            </span>
+          )}
         </div>
 
         {/* Search */}
@@ -176,9 +209,10 @@ export function CategoryPage({ category, onBack }: CategoryPageProps) {
                 key={p.value}
                 onClick={() => handleQuick(p.value)}
                 className="px-3.5 py-1.5 rounded-full text-xs font-medium border transition-all"
-                style={quickPeriod === p.value && !showCustom
-                  ? { backgroundColor: "#111827", color: "#fff", borderColor: "#111827" }
-                  : { backgroundColor: "#fff", color: "#6B7280", borderColor: "#E5E7EB" }
+                style={
+                  quickPeriod === p.value && !showCustom
+                    ? { backgroundColor: "#111827", color: "#fff", borderColor: "#111827" }
+                    : { backgroundColor: "#fff", color: "#6B7280", borderColor: "#E5E7EB" }
                 }
               >
                 {p.label}
@@ -187,21 +221,24 @@ export function CategoryPage({ category, onBack }: CategoryPageProps) {
             <button
               onClick={handleCustom}
               className="px-3.5 py-1.5 rounded-full text-xs font-medium border transition-all"
-              style={showCustom
-                ? { backgroundColor: "#111827", color: "#fff", borderColor: "#111827" }
-                : { backgroundColor: "#fff", color: "#6B7280", borderColor: "#E5E7EB" }
+              style={
+                showCustom
+                  ? { backgroundColor: "#111827", color: "#fff", borderColor: "#111827" }
+                  : { backgroundColor: "#fff", color: "#6B7280", borderColor: "#E5E7EB" }
               }
             >
               Personalizado
             </button>
             {hasDateFilter && (
-              <button onClick={clearDates} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 ml-1 transition-colors">
+              <button
+                onClick={clearDates}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 ml-1 transition-colors"
+              >
                 <X size={12} /> Limpar
               </button>
             )}
           </div>
 
-          {/* Custom date range */}
           {showCustom && (
             <div className="flex gap-3 mt-3 items-end">
               <div className="flex-1">
@@ -225,7 +262,6 @@ export function CategoryPage({ category, onBack }: CategoryPageProps) {
             </div>
           )}
 
-          {/* Active filter summary */}
           {hasDateFilter && (
             <p className="text-xs text-gray-400 mt-2">
               Exibindo documentos{fromDate ? ` a partir de ${fromDate.split("-").reverse().join("/")}` : ""}
@@ -234,34 +270,69 @@ export function CategoryPage({ category, onBack }: CategoryPageProps) {
           )}
         </div>
 
+        {errorMsg && (
+          <div className="w-full mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">
+            {errorMsg}
+          </div>
+        )}
+
         {/* Document list */}
         <div className="w-full space-y-3">
-          {docs.length === 0 ? (
+          {loading ? (
+            <div className="py-20 flex items-center justify-center gap-2 text-gray-400 text-sm">
+              <Loader2 size={16} className="animate-spin" />
+              Carregando documentos...
+            </div>
+          ) : sorted.length === 0 ? (
             <div className="text-center py-16 text-gray-400 text-sm">
               Nenhum documento encontrado para o período selecionado.
             </div>
           ) : (
-            docs.map((doc, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 px-5 py-4 flex items-center justify-between gap-4 hover:shadow-sm hover:border-gray-200 transition-all">
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: meta.bg, color: meta.color }}>
-                    <FileText size={16} />
+            sorted.map((ata) => {
+              const file = getLatestFile(ata);
+              return (
+                <div
+                  key={ata.id}
+                  className="bg-white rounded-2xl border border-gray-100 px-5 py-4 flex items-center justify-between gap-4 hover:shadow-sm hover:border-gray-200 transition-all"
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: meta.bg, color: meta.color }}
+                    >
+                      <FileText size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-gray-800 text-sm font-medium truncate">{ata.titulo}</p>
+                      <p className="text-gray-400 text-xs mt-0.5">
+                        {ata.numero} · {formatDateBR(ata.data)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-gray-800 text-sm font-medium truncate">{doc.title}</p>
-                    <p className="text-gray-400 text-xs mt-0.5">{doc.id} · {doc.date}</p>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => file && window.open(file.url, "_blank")}
+                      disabled={!file}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      title={file ? "Visualizar" : "Sem arquivo"}
+                    >
+                      <Eye size={15} />
+                    </button>
+                    <a
+                      href={file?.url}
+                      download={file?.nome}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => { if (!file) e.preventDefault(); }}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors ${!file ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
+                      title={file ? "Baixar" : "Sem arquivo"}
+                    >
+                      <Download size={15} />
+                    </a>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors" title="Visualizar">
-                    <Eye size={15} />
-                  </button>
-                  <button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors" title="Baixar">
-                    <Download size={15} />
-                  </button>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

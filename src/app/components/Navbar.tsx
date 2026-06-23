@@ -79,7 +79,7 @@ export function Navbar({ onAdminClick, isContato }: NavbarProps) {
         <div className="hidden md:flex">
           <button
             onClick={onAdminClick}
-            className="flex items-center gap-2 text-sm px-5 py-2.5 rounded-lg transition-all duration-300"
+            className="flex cursor-pointer items-center gap-2 text-sm px-5 py-2.5 rounded-lg transition-all duration-300"
             style={
               scrolled || isContato
                 ? { backgroundColor: "#111827", color: "#ffffff" }
@@ -121,7 +121,7 @@ export function Navbar({ onAdminClick, isContato }: NavbarProps) {
             </button>
           ))}
           <button
-            className="mt-4 w-full flex items-center justify-center gap-2 text-white text-sm px-5 py-2.5 rounded-lg"
+            className="mt-4 w-full cursor-pointer flex items-center justify-center gap-2 text-white text-sm px-5 py-2.5 rounded-lg"
             style={{ backgroundColor: "#111827" }}
                onClick={onAdminClick}
           >

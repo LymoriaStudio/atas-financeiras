@@ -162,10 +162,10 @@ export function AdminCategories() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
+    <div className="p-4">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
-          <h1 style={{ color: "#111827", fontSize: "1.5rem", fontWeight: 700 }}>Categorias</h1>
+          <h1 style={{ color: "#111827", fontSize: "1.5rem", fontWeight: 700 }}>Departamentos</h1>
           <p className="text-gray-400 text-sm mt-1">Gerencie as categorias de classificação dos documentos</p>
         </div>
         <button
@@ -174,7 +174,7 @@ export function AdminCategories() {
           style={{ backgroundColor: "#111827" }}
         >
           <Plus size={16} />
-          Nova Categoria
+          Novo Departamento
         </button>
       </div>
 
@@ -192,7 +192,7 @@ export function AdminCategories() {
       ) : (
         <>
           {/* Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
+          {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
             {cats.map((cat) => {
               const count = categoriaCounts[cat.id] ?? 0;
               return (
@@ -219,14 +219,11 @@ export function AdminCategories() {
                 </div>
               );
             })}
-          </div>
+          </div> */}
 
           {/* Info table */}
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <p style={{ color: "#111827", fontWeight: 600, fontSize: "0.9rem" }}>Resumo por categoria</p>
-              <p className="text-gray-400 text-xs">{totalAtas} ata{totalAtas !== 1 ? "s" : ""} no total</p>
-            </div>
+         
             <div className="overflow-x-auto">
               <div className="min-w-[640px]">
                 <div className="grid grid-cols-4 px-6 py-3 border-b border-gray-100 bg-gray-50">

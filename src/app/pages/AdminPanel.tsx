@@ -23,7 +23,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     title: "Documentos",
     items: [
       { label: "Atas", path: "/admin/atas", icon: <FileText className="w-4 h-4" /> },
-      { label: "Categorias", path: "/admin/categorias", icon: <FolderTree className="w-4 h-4" /> },
+      { label: "Departamentos", path: "/admin/categorias", icon: <FolderTree className="w-4 h-4" /> },
      // { label: "Uploads", path: "/admin/uploads", icon: <UploadCloud className="w-4 h-4" /> },
      // { label: "Lixeira", path: "/admin/lixeira", icon: <Trash2 className="w-4 h-4" /> },
     ],
@@ -66,7 +66,7 @@ export function AdminPanel() {
     <div className="min-h-screen flex bg-[#F8FAFC] text-slate-900">
    
       {/* SIDEBAR — desktop */}
-      <aside className="hidden lg:flex flex-col w-64 shrink-0 bg-[#1E293B] text-white">
+      <aside className="hidden lg:flex flex-col w-60 shrink-0 bg-[#1E293B] text-white">
         <SidebarContent currentPath={location.pathname} onLogout={handleLogout} />
       </aside>
 
@@ -103,8 +103,8 @@ export function AdminPanel() {
               <Menu className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-xl font-bold text-slate-900 leading-tight">{header.title}</h1>
-              <p className="text-sm text-slate-400 leading-tight">{header.subtitle}</p>
+              <p className="text-gray-500 font-medium">Painel {">"} <span className="text-gray-900 font-medium">{header.title}</span></p>
+           
             </div>
           </div>
 
@@ -151,8 +151,8 @@ export function AdminPanel() {
         </header>
 
         {/* CONTEÚDO — aqui entra a rota filha ativa */}
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 overflow-auto p-6 lg:p-8">
+          <div className="max-full mx-auto">
             <Outlet />
           </div>
         </main>
@@ -168,7 +168,7 @@ function SidebarContent({
     <>
       <div className="p-6 border-b border-slate-700/50 flex-shrink-0">
         <div className="flex items-center gap-3">
-       <img src={logoSbs} alt="" className="w-full"/>
+       <img src={logoSbs} alt="" className="w-[80%]"/>
 
         </div>
       </div>

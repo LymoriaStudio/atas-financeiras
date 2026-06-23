@@ -44,7 +44,6 @@ function formatDate(iso: string) {
   return `${d}/${m}/${y}`;
 }
 
-// NORMALIZADO: garante array independente do que vier da API
 function toArray(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw;
   if (typeof raw === "string" && raw.length) return [raw];
@@ -55,6 +54,20 @@ function getLatestFile(ata: Ata) {
   if (!ata.arquivos || ata.arquivos.length === 0) return null;
   return ata.arquivos[ata.arquivos.length - 1];
 }
+
+function getTipoStyle(tipo: string): { backgroundColor: string; color: string } {
+  const map: Record<string, { backgroundColor: string; color: string }> = {
+    "Atas":           { backgroundColor: "#EFF6FF", color: "#3B82F6" },
+    "Financeiro":     { backgroundColor: "#F0FDF4", color: "#22C55E" },
+    "Estatuto":       { backgroundColor: "#FAF5FF", color: "#A855F7" },
+    "Administrativo": { backgroundColor: "#FFF7ED", color: "#F97316" },
+    "Contratos":      { backgroundColor: "#FFF1F2", color: "#F43F5E" },
+    "Reuniões":       { backgroundColor: "#F0FDFA", color: "#14B8A6" },
+  };
+  return map[tipo] ?? { backgroundColor: "#11182715", color: "#111827" };
+}
+
+const STATUS_FILTERS = ["Todos", "Publicado", "Rascunho", "Arquivado"];
 
 export function AdminAtas() {
   const [atas, setAtas] = useState<Ata[]>([]);
@@ -67,6 +80,7 @@ export function AdminAtas() {
 
   const [query, setQuery] = useState("");
   const [filterCat, setFilterCat] = useState("Todas");
+  const [filterStatus, setFilterStatus] = useState("Todos");
   const [modal, setModal] = useState<ModalMode>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -109,9 +123,14 @@ export function AdminAtas() {
 
   const filtered = atas.filter((a) => {
     const q = query.toLowerCase();
-    const catIds = toArray((a as any).categoria_id); // NORMALIZADO
-    const matchesCat = filterCat === "Todas" || catIds.some((id) => categoriaMap[id]?.name === filterCat);
-    return matchesCat && (a.titulo.toLowerCase().includes(q) || a.numero.toLowerCase().includes(q));
+    const tipo = (a as any).tipo ?? "";
+    const matchesCat = filterCat === "Todas" || tipo === filterCat;
+    const matchesStatus = filterStatus === "Todos" || a.status === filterStatus;
+    return (
+      matchesCat &&
+      matchesStatus &&
+      (a.titulo.toLowerCase().includes(q) || a.numero.toLowerCase().includes(q))
+    );
   });
 
   const openAdd = () => {
@@ -128,7 +147,7 @@ export function AdminAtas() {
       numero: ata.numero,
       titulo: ata.titulo,
       tipo: (ata as any).tipo ?? TIPOS[0],
-      categoria_id: toArray((ata as any).categoria_id), // NORMALIZADO
+      categoria_id: toArray((ata as any).categoria_id),
       descricao: ata.descricao,
       data: ata.data?.slice(0, 10) ?? "",
       horario: ata.horario?.slice(0, 5) ?? "",
@@ -155,13 +174,8 @@ export function AdminAtas() {
     setParticipanteInput("");
   };
 
-  const openView = (ata: Ata) => {
-    setViewingAta(ata);
-  };
-
-  const closeView = () => {
-    setViewingAta(null);
-  };
+  const openView = (ata: Ata) => setViewingAta(ata);
+  const closeView = () => setViewingAta(null);
 
   const toggleDepartamento = (id: string) => {
     setForm((prev) => ({
@@ -288,7 +302,7 @@ export function AdminAtas() {
   const viewingFile = viewingAta ? getLatestFile(viewingAta) : null;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
+    <div className="p-4 sm:p-4 lg:p-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6 sm:mb-8">
         <div>
@@ -305,8 +319,8 @@ export function AdminAtas() {
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+      {/* Search + Category filter */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">
           <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -322,10 +336,30 @@ export function AdminAtas() {
             onChange={(e) => setFilterCat(e.target.value)}
             className="w-full appearance-none pl-4 pr-9 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none"
           >
-            {["Todas", ...categorias.map((c) => c.name)].map((c) => <option key={c}>{c}</option>)}
+            {["Todas", ...TIPOS].map((c) => (
+              <option key={c}>{c}</option>
+            ))}
           </select>
           <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
+      </div>
+
+      {/* Status filter buttons */}
+      <div className="flex gap-2 flex-wrap mb-6">
+        {STATUS_FILTERS.map((s) => (
+          <button
+            key={s}
+            onClick={() => setFilterStatus(s)}
+            className="px-4 py-1.5 rounded-full text-xs font-medium border transition-all"
+            style={
+              filterStatus === s
+                ? { backgroundColor: "#111827", color: "#fff", borderColor: "#111827" }
+                : { backgroundColor: "#fff", color: "#6B7280", borderColor: "#E5E7EB" }
+            }
+          >
+            {s}
+          </button>
+        ))}
       </div>
 
       {errorMsg && (
@@ -345,45 +379,44 @@ export function AdminAtas() {
         </div>
       ) : (
         <>
-          {/* ===== Desktop / tablet: tabela em grid (a partir de md) ===== */}
+          {/* Desktop table */}
           <div className="hidden md:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="grid grid-cols-12 px-6 py-3.5 border-b border-gray-100 bg-gray-50">
               <div className="col-span-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Nº da ATA</div>
               <div className="col-span-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Título</div>
-              <div className="col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Departamentos</div>
+              <div className="col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Tipo</div>
               <div className="col-span-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Data</div>
               <div className="col-span-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</div>
               <div className="col-span-1 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">Ações</div>
             </div>
 
             {filtered.map((ata) => {
-              const deps = toArray((ata as any).categoria_id);
+              const tipo = (ata as any).tipo ?? "";
               return (
                 <div key={ata.id} className="grid grid-cols-12 px-6 py-4 border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors items-center">
                   <div className="col-span-3 text-gray-700 text-xs font-medium truncate pr-2">{ata.numero}</div>
                   <div className="col-span-4 text-gray-600 text-sm truncate pr-4">{ata.titulo}</div>
-                  <div className="col-span-2 flex flex-wrap gap-1">
-                    {deps.length === 0 ? (
-                      <span className="text-gray-300 text-xs">—</span>
+                  <div className="col-span-2">
+                    {tipo ? (
+                      <span
+                        className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium"
+                        style={getTipoStyle(tipo)}
+                      >
+                        {tipo}
+                      </span>
                     ) : (
-                      deps.map((id) => {
-                        const cat = categoriaMap[id];
-                        if (!cat) return null;
-                        return (
-                          <span
-                            key={id}
-                            className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium"
-                            style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
-                          >
-                            {cat.name}
-                          </span>
-                        );
-                      })
+                      <span className="text-gray-300 text-xs">—</span>
                     )}
                   </div>
                   <div className="col-span-1 text-gray-500 text-xs">{formatDate(ata.data)}</div>
                   <div className="col-span-1">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ata.status === "Publicado" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                      ata.status === "Publicado"
+                        ? "bg-green-50 text-green-700"
+                        : ata.status === "Arquivado"
+                        ? "bg-gray-100 text-gray-500"
+                        : "bg-amber-50 text-amber-700"
+                    }`}>
                       {ata.status}
                     </span>
                   </div>
@@ -403,10 +436,10 @@ export function AdminAtas() {
             })}
           </div>
 
-          {/* ===== Mobile: cards (abaixo de md) ===== */}
+          {/* Mobile cards */}
           <div className="md:hidden flex flex-col gap-3">
             {filtered.map((ata) => {
-              const deps = toArray((ata as any).categoria_id);
+              const tipo = (ata as any).tipo ?? "";
               return (
                 <div key={ata.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
                   <div className="flex items-start justify-between gap-3 mb-2">
@@ -414,7 +447,13 @@ export function AdminAtas() {
                       <p className="text-gray-700 text-xs font-semibold truncate">{ata.numero}</p>
                       <p className="text-gray-800 text-sm font-medium mt-0.5 truncate">{ata.titulo}</p>
                     </div>
-                    <span className={`shrink-0 inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ata.status === "Publicado" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>
+                    <span className={`shrink-0 inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                      ata.status === "Publicado"
+                        ? "bg-green-50 text-green-700"
+                        : ata.status === "Arquivado"
+                        ? "bg-gray-100 text-gray-500"
+                        : "bg-amber-50 text-amber-700"
+                    }`}>
                       {ata.status}
                     </span>
                   </div>
@@ -422,22 +461,15 @@ export function AdminAtas() {
                   <p className="text-gray-400 text-xs mb-2">{formatDate(ata.data)}</p>
 
                   <div className="flex flex-wrap gap-1 mb-3">
-                    {deps.length === 0 ? (
-                      <span className="text-gray-300 text-xs">Sem departamento</span>
+                    {tipo ? (
+                      <span
+                        className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium"
+                        style={getTipoStyle(tipo)}
+                      >
+                        {tipo}
+                      </span>
                     ) : (
-                      deps.map((id) => {
-                        const cat = categoriaMap[id];
-                        if (!cat) return null;
-                        return (
-                          <span
-                            key={id}
-                            className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium"
-                            style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
-                          >
-                            {cat.name}
-                          </span>
-                        );
-                      })
+                      <span className="text-gray-300 text-xs">Sem tipo</span>
                     )}
                   </div>
 
@@ -487,7 +519,7 @@ export function AdminAtas() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Tipo</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Categoria</label>
                   <div className="relative">
                     <select
                       value={form.tipo}
@@ -522,18 +554,6 @@ export function AdminAtas() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Horário</label>
-                  <input
-                    type="time"
-                    value={form.horario}
-                    onChange={(e) => setForm({ ...form, horario: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Local</label>
                   <input
                     value={form.local}
@@ -542,28 +562,9 @@ export function AdminAtas() {
                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Presidente</label>
-                  <input
-                    value={form.presidente}
-                    onChange={(e) => setForm({ ...form, presidente: e.target.value })}
-                    placeholder="Nome do presidente"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
-                  />
-                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Secretário</label>
-                <input
-                  value={form.secretario}
-                  onChange={(e) => setForm({ ...form, secretario: e.target.value })}
-                  placeholder="Nome do secretário"
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
-                />
-              </div>
-
-              {/* Participantes — tag input com máscara de vírgula */}
+              {/* Participantes */}
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Participantes</label>
                 <div className="w-full px-3 py-2 rounded-xl border border-gray-200 focus-within:ring-2 focus-within:ring-gray-200 flex flex-wrap gap-2">
@@ -573,11 +574,7 @@ export function AdminAtas() {
                       className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 text-xs font-medium px-3 py-1.5 rounded-lg"
                     >
                       {nome}
-                      <button
-                        type="button"
-                        onClick={() => removeParticipante(idx)}
-                        className="text-gray-400 hover:text-gray-700"
-                      >
+                      <button type="button" onClick={() => removeParticipante(idx)} className="text-gray-400 hover:text-gray-700">
                         <X size={11} />
                       </button>
                     </span>
@@ -603,9 +600,9 @@ export function AdminAtas() {
                 />
               </div>
 
-              {/* Departamento — multi-select com checkboxes coloridos */}
+              {/* Departamentos */}
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Departamento</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Departamentos Participantes</label>
                 {categoriasLoading ? (
                   <div className="flex items-center gap-2 text-gray-400 text-xs py-2">
                     <Loader2 size={13} className="animate-spin" />
@@ -628,10 +625,7 @@ export function AdminAtas() {
                           />
                           <span
                             className="w-4 h-4 rounded-[2px] border-2 flex items-center justify-center shrink-0 transition-colors"
-                            style={{
-                              borderColor: 'gray',
-                              backgroundColor: 'white',
-                            }}
+                            style={{ borderColor: "gray", backgroundColor: "white" }}
                           >
                             {checked && <Check size={11} className="text-[#111827]" />}
                           </span>
@@ -654,11 +648,7 @@ export function AdminAtas() {
                           style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
                         >
                           {cat.name}
-                          <button
-                            type="button"
-                            onClick={() => toggleDepartamento(id)}
-                            className="hover:opacity-70"
-                          >
+                          <button type="button" onClick={() => toggleDepartamento(id)} className="hover:opacity-70">
                             <X size={11} />
                           </button>
                         </span>
@@ -668,6 +658,7 @@ export function AdminAtas() {
                 )}
               </div>
 
+              {/* Status */}
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Status</label>
                 <div className="flex gap-3">
@@ -677,9 +668,10 @@ export function AdminAtas() {
                       type="button"
                       onClick={() => setForm({ ...form, status: s })}
                       className="flex-1 py-2.5 rounded-xl border text-sm font-medium transition-all"
-                      style={form.status === s
-                        ? { backgroundColor: "#111827", color: "#fff", borderColor: "#111827" }
-                        : { backgroundColor: "#fff", color: "#6B7280", borderColor: "#E5E7EB" }
+                      style={
+                        form.status === s
+                          ? { backgroundColor: "#111827", color: "#fff", borderColor: "#111827" }
+                          : { backgroundColor: "#fff", color: "#6B7280", borderColor: "#E5E7EB" }
                       }
                     >
                       {s}
@@ -688,7 +680,7 @@ export function AdminAtas() {
                 </div>
               </div>
 
-              {/* File upload area */}
+              {/* File upload */}
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Arquivo (PDF)</label>
                 <label
@@ -750,7 +742,7 @@ export function AdminAtas() {
         </div>
       )}
 
-      {/* View (PDF canvas) Modal */}
+      {/* View Modal */}
       {viewingAta && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}>
           <div className="bg-white rounded-2xl w-full max-w-4xl h-[90vh] shadow-2xl flex flex-col overflow-hidden">
@@ -768,7 +760,6 @@ export function AdminAtas() {
                     target="_blank"
                     rel="noreferrer"
                     className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-                    title="Baixar PDF"
                   >
                     <Download size={14} />
                     <span className="hidden sm:inline">Baixar</span>
