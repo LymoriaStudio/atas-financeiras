@@ -203,7 +203,7 @@ export function AdminAtas() {
   };
 
   const saveForm = async () => {
-    if (!form.numero || !form.titulo || !form.data || !form.horario) return;
+    if (!form.numero || !form.titulo || !form.data) return;
     setSubmitting(true);
     setErrorMsg(null);
     setUploadError(null);
@@ -227,7 +227,6 @@ export function AdminAtas() {
       categoria_id: form.categoria_id,
       descricao: form.descricao,
       data: form.data,
-      horario: form.horario.length === 5 ? `${form.horario}:00` : form.horario,
       local: form.local,
       presidente: form.presidente,
       secretario: form.secretario,
@@ -357,7 +356,7 @@ export function AdminAtas() {
             <div className="grid grid-cols-12 px-6 py-3.5 border-b border-gray-100 bg-gray-50">
               <div className="col-span-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Nº da ATA</div>
               <div className="col-span-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Título</div>
-              <div className="col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Departamentos</div>
+              <div className="col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Categoria</div>
               <div className="col-span-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Data</div>
               <div className="col-span-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</div>
               <div className="col-span-1 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">Ações</div>

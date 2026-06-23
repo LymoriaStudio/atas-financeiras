@@ -10,6 +10,8 @@ import { CategoryPage } from "../components/CategoryPage";
 import { AdminLogin } from "./AdminLogin";
 import { AdminPanel } from "./AdminPanel";
 import { useNavigate } from "react-router";
+import { useEffect } from "react";
+import { scrollIntent } from "../../utils/scrollIntent";
 
 type Page = "home" | "all-atas" | "category" | "admin-login" | "admin";
 
@@ -17,6 +19,23 @@ export default function App() {
   const [page, setPage] = useState<Page>("home");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
    const navigate = useNavigate();
+
+   useEffect(() => {
+  const anchor = scrollIntent.consume(); // lê e limpa
+  if (!anchor) return;
+
+  let attempts = 0;
+  const tryScroll = () => {
+    const el = document.getElementById(anchor);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" });
+    } else if (attempts++ < 20) {
+      setTimeout(tryScroll, 100);
+    }
+  };
+
+  setTimeout(tryScroll, 50);
+}, []);
 
   if (page === "admin-login") {
     return (
