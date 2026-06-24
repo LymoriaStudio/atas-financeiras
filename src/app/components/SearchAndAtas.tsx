@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Search, ChevronDown, Eye, Download, ArrowRight, Loader2 } from "lucide-react";
-import { getAtas, type Ata } from "../../lib/api/atasService";
+import { Search, ChevronDown, Eye, Download, ArrowRight, Loader2, FileX, X } from "lucide-react";
+import { getAtas, incrementDownloads, type Ata } from "../../lib/api/atasService";
 
 const PREVIEW_COUNT = 5;
 
@@ -16,35 +16,32 @@ interface Props {
 
 function getTipoStyle(tipo: string): { backgroundColor: string; color: string } {
   const map: Record<string, { backgroundColor: string; color: string }> = {
-    "Atas":        { backgroundColor: "#EFF6FF", color: "#3B82F6" }, // azul
-    "Financeiro":  { backgroundColor: "#F0FDF4", color: "#22C55E" }, // verde
-    "Estatuto":    { backgroundColor: "#FAF5FF", color: "#A855F7" }, // roxo
-    "Administrativo": { backgroundColor: "#FFF7ED", color: "#F97316" }, // laranja
-    "Contratos":   { backgroundColor: "#FFF1F2", color: "#F43F5E" }, // vermelho
-    "Reuniões":    { backgroundColor: "#F0FDFA", color: "#14B8A6" }, // teal
+    "Atas":           { backgroundColor: "#EFF6FF", color: "#3B82F6" },
+    "Financeiro":     { backgroundColor: "#F0FDF4", color: "#22C55E" },
+    "Estatuto":       { backgroundColor: "#FAF5FF", color: "#A855F7" },
+    "Administrativo": { backgroundColor: "#FFF7ED", color: "#F97316" },
+    "Contratos":      { backgroundColor: "#FFF1F2", color: "#F43F5E" },
+    "Reuniões":       { backgroundColor: "#F0FDFA", color: "#14B8A6" },
   };
-
-  return map[tipo] ?? { backgroundColor: "#11182715", color: "#111827" }; // fallback cinza
+  return map[tipo] ?? { backgroundColor: "#11182715", color: "#111827" };
 }
 
 export function SearchAndAtas({ onVerTodas }: Props) {
   const [atas, setAtas] = useState<Ata[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewingAta, setViewingAta] = useState<Ata | null>(null);
 
   const [query, setQuery] = useState("");
   const [year, setYear] = useState("Todos os anos");
   const [category, setCategory] = useState("Todas as categorias");
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   async function fetchData() {
     setLoading(true);
     const atasRes = await getAtas();
     if (!atasRes.error && atasRes.data) {
-      const publicadas = atasRes.data.filter((a) => a.status === "Publicado");
-      setAtas(publicadas);
+      setAtas(atasRes.data.filter((a) => a.status === "Publicado"));
     }
     setLoading(false);
   }
@@ -77,6 +74,24 @@ export function SearchAndAtas({ onVerTodas }: Props) {
     return ata.arquivos[ata.arquivos.length - 1];
   };
 
+  const viewingFile = viewingAta ? getLatestFile(viewingAta) : null;
+
+  const handleView = (ata: Ata) => setViewingAta(ata);
+
+  const handleDownload = async (ata: Ata) => {
+    const file = getLatestFile(ata);
+    if (!file) return;
+    const res = await fetch(file.url);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.nome;
+    a.click();
+    URL.revokeObjectURL(url);
+    await incrementDownloads(ata.id, ata.downloads_count ?? 0);
+  };
+
   return (
     <section id="consultar" className="py-16 bg-gray-50">
       <div className="max-w-5xl mx-auto px-6 flex flex-col items-center">
@@ -93,7 +108,6 @@ export function SearchAndAtas({ onVerTodas }: Props) {
 
         {/* Filters row */}
         <div className="flex flex-col lg:flex-row gap-3 items-end w-full mb-8">
-          {/* Search */}
           <div className="flex-1 relative w-full">
             <input
               type="text"
@@ -107,7 +121,6 @@ export function SearchAndAtas({ onVerTodas }: Props) {
             </div>
           </div>
 
-          {/* Year */}
           <div className="w-full lg:w-44">
             <label className="block text-xs font-semibold text-gray-500 mb-1.5">Ano</label>
             <div className="relative">
@@ -119,7 +132,6 @@ export function SearchAndAtas({ onVerTodas }: Props) {
             </div>
           </div>
 
-          {/* Category */}
           <div className="w-full lg:w-48">
             <label className="block text-xs font-semibold text-gray-500 mb-1.5">Categorias</label>
             <div className="relative">
@@ -146,7 +158,6 @@ export function SearchAndAtas({ onVerTodas }: Props) {
 
         {/* Listing */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden w-full">
-          {/* Table header — apenas desktop */}
           <div className="hidden md:grid grid-cols-12 px-6 py-3.5 border-b border-gray-100 bg-gray-50/80 text-left">
             <div className="col-span-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Nº da ATA</div>
             <div className="col-span-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Título</div>
@@ -170,16 +181,13 @@ export function SearchAndAtas({ onVerTodas }: Props) {
               const file = getLatestFile(ata);
               return (
                 <div key={ata.id} className="border-b border-gray-50 last:border-0">
-                  {/* ── Linha desktop ── */}
+                  {/* Desktop */}
                   <div className="hidden md:grid grid-cols-12 px-6 py-4 hover:bg-gray-50/60 transition-colors items-center text-left">
                     <div className="col-span-3 text-gray-800 text-sm font-medium">{ata.numero}</div>
                     <div className="col-span-4 text-gray-500 text-sm truncate pr-4">{ata.titulo}</div>
                     <div className="col-span-2 flex flex-wrap gap-1">
                       {tipo ? (
-                        <span
-                          className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium"
-                          style={getTipoStyle(tipo)}
-                        >
+                        <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium" style={getTipoStyle(tipo)}>
                           {tipo}
                         </span>
                       ) : (
@@ -189,28 +197,25 @@ export function SearchAndAtas({ onVerTodas }: Props) {
                     <div className="col-span-2 text-gray-500 text-sm">{formatDateBR(ata.data)}</div>
                     <div className="col-span-1 flex items-center gap-1">
                       <button
-                        onClick={() => file && window.open(file.url, "_blank")}
+                        onClick={() => handleView(ata)}
                         disabled={!file}
                         className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         title={file ? "Visualizar" : "Sem arquivo"}
                       >
                         <Eye size={14} />
                       </button>
-                      <a
-                        href={file?.url}
-                        download={file?.nome}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(e) => { if (!file) e.preventDefault(); }}
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors ${!file ? "opacity-30 cursor-not-allowed" : ""}`}
+                      <button
+                        onClick={() => handleDownload(ata)}
+                        disabled={!file}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         title={file ? "Baixar" : "Sem arquivo"}
                       >
                         <Download size={14} />
-                      </a>
+                      </button>
                     </div>
                   </div>
 
-                  {/* ── Card mobile ── */}
+                  {/* Mobile */}
                   <div className="md:hidden px-4 py-4 hover:bg-gray-50/60 transition-colors">
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <div className="min-w-0">
@@ -219,34 +224,27 @@ export function SearchAndAtas({ onVerTodas }: Props) {
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <button
-                          onClick={() => file && window.open(file.url, "_blank")}
+                          onClick={() => handleView(ata)}
                           disabled={!file}
                           className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           title={file ? "Visualizar" : "Sem arquivo"}
                         >
                           <Eye size={15} />
                         </button>
-                        <a
-                          href={file?.url}
-                          download={file?.nome}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(e) => { if (!file) e.preventDefault(); }}
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors ${!file ? "opacity-30 cursor-not-allowed" : ""}`}
+                        <button
+                          onClick={() => handleDownload(ata)}
+                          disabled={!file}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           title={file ? "Baixar" : "Sem arquivo"}
                         >
                           <Download size={15} />
-                        </a>
+                        </button>
                       </div>
                     </div>
-
                     <div className="flex items-center justify-between gap-2 mt-2">
                       <div className="flex flex-wrap gap-1">
                         {tipo ? (
-                          <span
-                            className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium"
-                            style={{ backgroundColor: "#11182715", color: "#111827" }}
-                          >
+                          <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium" style={getTipoStyle(tipo)}>
                             {tipo}
                           </span>
                         ) : (
@@ -282,6 +280,47 @@ export function SearchAndAtas({ onVerTodas }: Props) {
           </button>
         )}
       </div>
+
+      {/* View Modal */}
+      {viewingAta && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}>
+          <div className="bg-white rounded-2xl w-full max-w-4xl h-[90vh] shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-gray-100 shrink-0">
+              <div className="min-w-0">
+                <p className="text-gray-700 text-xs font-semibold truncate">{viewingAta.numero}</p>
+                <p style={{ color: "#111827", fontWeight: 700 }} className="text-sm truncate">{viewingAta.titulo}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {viewingFile && (
+                  <button
+                    onClick={() => handleDownload(viewingAta)}
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    <Download size={14} />
+                    <span className="hidden sm:inline">Baixar</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setViewingAta(null)}
+                  className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 bg-gray-100">
+              {viewingFile ? (
+                <iframe src={viewingFile.url} title={`PDF de ${viewingAta.titulo}`} className="w-full h-full" style={{ border: "none" }} />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-gray-400">
+                  <FileX size={32} />
+                  <p className="text-sm">Nenhum arquivo anexado a esta ata.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

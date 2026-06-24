@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { FileText, BarChart2, Gavel, TrendingUp, Clock } from "lucide-react";
+import { FileText, Clock, TrendingUp, Download, CheckCircle, FolderOpen } from "lucide-react";
 import { useNavigate } from "react-router";
 import { getAtas, type Ata } from "../../../lib/api/atasService";
+import { getCategorias, type Categoria } from "../../../lib/api/categoriasService";
 
 function formatDate(iso?: string) {
   if (!iso) return "-";
@@ -17,34 +18,33 @@ function getTipoStyle(tipo: string): { bg: string; text: string } {
   return map[tipo] ?? { bg: "#F3F4F6", text: "#374151" };
 }
 
-// Atividade mockada — sem serviço ainda
 const activity = [
-  { action: "Ata publicada",        doc: "Balanço Semestral – Junho 2026",              time: "Há 2 dias" },
-  { action: "Documento editado",    doc: "Regimento Interno Atualizado",                time: "Há 5 dias" },
-  { action: "Nova ata adicionada",  doc: "Ata de Reunião – Aprovação de Orçamento",    time: "Há 1 semana" },
-  { action: "Categoria alterada",   doc: "Relatório de Auditoria Interna",              time: "Há 2 semanas" },
+  { action: "Ata publicada",        doc: "Balanço Semestral – Junho 2026",           time: "Há 2 dias" },
+  { action: "Documento editado",    doc: "Regimento Interno Atualizado",             time: "Há 5 dias" },
+  { action: "Nova ata adicionada",  doc: "Ata de Reunião – Aprovação de Orçamento", time: "Há 1 semana" },
+  { action: "Categoria alterada",   doc: "Relatório de Auditoria Interna",           time: "Há 2 semanas" },
 ];
 
 export function AdminDashboard() {
   const navigate = useNavigate();
   const [atas, setAtas] = useState<Ata[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { fetchData(); }, []);
 
   async function fetchData() {
     setLoading(true);
-    const res = await getAtas();
-    if (!res.error && res.data) setAtas(res.data);
+    const [atasRes, catsRes] = await Promise.all([getAtas(), getCategorias()]);
+    if (!atasRes.error && atasRes.data) setAtas(atasRes.data);
+    if (!catsRes.error && catsRes.data) setCategorias(catsRes.data);
     setLoading(false);
   }
 
   const total      = atas.length;
-  const financeiro = atas.filter((a) => (a as any).tipo === "Financeiro").length;
-  const atasCount  = atas.filter((a) => (a as any).tipo === "Atas").length;
-  const estatuto   = atas.filter((a) => (a as any).tipo === "Estatuto").length;
-
-  const pct = (n: number) => total > 0 ? Math.round((n / total) * 100) : 0;
+  const publicadas = atas.filter((a) => a.status === "Publicado").length;
+  const downloads  = atas.reduce((acc, a) => acc + (a.downloads_count ?? 0), 0);
+  const totalCats  = categorias.length;
 
   const recent = [...atas]
     .sort((a, b) => new Date(b.criado_em ?? 0).getTime() - new Date(a.criado_em ?? 0).getTime())
@@ -57,43 +57,35 @@ export function AdminDashboard() {
       icon: <FileText className="w-5 h-5" />,
       iconBg: "#F1F5F9",
       iconColor: "#475569",
-      sub: `+${Math.max(0, total)} cadastrados`,
+      sub: `${total} cadastrados`,
       subColor: "#10B981",
-      spark: "#475569",
-      sparkPath: "M0 25 L15 18 L30 22 L45 10 L60 15 L75 5 L90 2 L100 12",
     },
     {
-      label: "Financeiros",
-      value: financeiro,
-      icon: <BarChart2 className="w-5 h-5" />,
-      iconBg: "#F0FDF4",
-      iconColor: "#22C55E",
-      sub: `${pct(financeiro)}% do total`,
-      subColor: "#10B981",
-      spark: "#22C55E",
-      sparkPath: "M0 25 L20 20 L40 26 L60 12 L80 18 L100 5",
-    },
-    {
-      label: "Atas",
-      value: atasCount,
-      icon: <FileText className="w-5 h-5" />,
-      iconBg: "#EFF6FF",
-      iconColor: "#3B82F6",
-      sub: `${pct(atasCount)}% do total`,
-      subColor: "#3B82F6",
-      spark: "#3B82F6",
-      sparkPath: "M0 22 L15 15 L30 20 L45 8 L60 14 L75 4 L90 10 L100 2",
-    },
-    {
-      label: "Estatutos",
-      value: estatuto,
-      icon: <Gavel className="w-5 h-5" />,
+      label: "Total de Categorias",
+      value: totalCats,
+      icon: <FolderOpen className="w-5 h-5" />,
       iconBg: "#FDF4FF",
       iconColor: "#A855F7",
-      sub: `${pct(estatuto)}% do total`,
+      sub: `${totalCats} categoria${totalCats !== 1 ? "s" : ""} ativa${totalCats !== 1 ? "s" : ""}`,
       subColor: "#A855F7",
-      spark: "#A855F7",
-      sparkPath: "M0 28 L20 22 L40 26 L60 18 L80 20 L100 8",
+    },
+    {
+      label: "Downloads",
+      value: downloads,
+      icon: <Download className="w-5 h-5" />,
+      iconBg: "#EFF6FF",
+      iconColor: "#3B82F6",
+      sub: "total de downloads",
+      subColor: "#3B82F6",
+    },
+    {
+      label: "Publicados",
+      value: publicadas,
+      icon: <CheckCircle className="w-5 h-5" />,
+      iconBg: "#F0FDF4",
+      iconColor: "#22C55E",
+      sub: total > 0 ? `${Math.round((publicadas / total) * 100)}% do total` : "0% do total",
+      subColor: "#10B981",
     },
   ];
 
@@ -104,9 +96,7 @@ export function AdminDashboard() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-400 text-sm mt-1">
-            Visão geral do Portal de Transparência
-          </p>
+          <p className="text-gray-400 text-sm mt-1">Visão geral do Portal de Transparência</p>
         </div>
         <button
           onClick={() => navigate("/admin/atas")}
@@ -118,42 +108,33 @@ export function AdminDashboard() {
       </div>
 
       {/* 4 Cards */}
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-  {CARDS.map((card) => (
-    <div
-      key={card.label}
-      className="bg-white flex gap-4 items-start rounded-2xl border border-gray-100 shadow-sm p-5"
-    >
-      {/* Ícone + label */}
-      <div className="flex items-center gap-3 mb-4">
-        <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-          style={{ backgroundColor: card.iconBg, color: card.iconColor }}
-        >
-          {card.icon}
-        </div>
-
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+        {CARDS.map((card) => (
+          <div
+            key={card.label}
+            className="bg-white flex gap-4 items-start rounded-2xl border border-gray-100 shadow-sm p-5"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                style={{ backgroundColor: card.iconBg, color: card.iconColor }}
+              >
+                {card.icon}
+              </div>
+            </div>
+            <div>
+              <p className="text-[12px] text-gray-400 font-medium">{card.label}</p>
+              <p className="text-4xl font-bold text-gray-900 mb-3">
+                {loading ? "—" : card.value}
+              </p>
+              <p className="text-xs font-medium flex items-center gap-1" style={{ color: card.subColor }}>
+                <TrendingUp size={12} />
+                {card.sub}
+              </p>
+            </div>
+          </div>
+        ))}
       </div>
-
-      <div>
-
- 
-      <p className="text-[12px] text-gray-400 font-medium">{card.label}</p>
-
-      {/* Número */}
-      <p className="text-4xl font-bold text-gray-900 mb-3">
-        {loading ? "—" : card.value}
-      </p>
-
-      {/* Subtexto */}
-      <p className="text-xs font-medium flex items-center gap-1" style={{ color: card.subColor }}>
-        <TrendingUp size={12} />
-        {card.sub}
-      </p>
-           </div>
-    </div>
-  ))}
-</div>
 
       {/* Bottom row */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

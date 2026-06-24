@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Eye, Download, Search, ChevronDown, ChevronLeft, ChevronRight, ArrowLeft, SlidersHorizontal, Calendar, X, Loader2, FileX } from "lucide-react";
 import { getAtas, incrementDownloads, type Ata } from "../../lib/api/atasService";
 
+
 type QuickPeriod = "todos" | "mes" | "trimestre" | "semestre" | "ano";
 const QUICK_PERIODS: { label: string; value: QuickPeriod }[] = [
   { label: "Todos", value: "todos" },
@@ -141,15 +142,22 @@ export function AllAtas({ onBack }: AllAtasProps) {
 
   const handleView = (ata: Ata) => setViewingAta(ata);
 
-  const handleDownload = async (ata: Ata) => {
-    const file = getLatestFile(ata);
-    if (!file) return;
-    window.open(file.url, "_blank");
-    const { data, error } = await incrementDownloads(ata.id, ata.downloads_count ?? 0);
-    if (!error && data) {
-      setAtas((prev) => prev.map((a) => (a.id === ata.id ? data : a)));
-    }
-  };
+const handleDownload = async (ata: Ata) => {
+  const file = getLatestFile(ata);
+  if (!file) return;
+  const res = await fetch(file.url);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = file.nome;
+  a.click();
+  URL.revokeObjectURL(url);
+  const { data, error } = await incrementDownloads(ata.id, ata.downloads_count ?? 0);
+  if (!error && data) {
+    setAtas((prev) => prev.map((a) => (a.id === ata.id ? data : a)));
+  }
+};
 
   const viewingFile = viewingAta ? getLatestFile(viewingAta) : null;
 
