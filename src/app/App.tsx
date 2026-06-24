@@ -6,12 +6,17 @@ import { AdminPanel } from "./pages/AdminPanel";
 import { AdminAtas } from "./components/admin/AdminAtas";
 import { AdminDashboard } from "./components/admin/AdminDashboard";
 import { AdminCategories } from "./components/admin/AdminCategories";
+import { AdminUsuarios } from "./components/admin/AdminUsuarios";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { AuthCallback } from "./components/AuthCallback";
+import { RedefinirSenha } from "./pages/RedefinirSenha";
 
 export const router = createBrowserRouter([
   { path: "/", Component: HomeAta },
   { path: "/contato", Component: Contato },
   { path: "/login", Component: AdminLogin },
+  { path: "/auth/callback", Component: AuthCallback },
+  { path: "/redefinir-senha", Component: RedefinirSenha },
 
   {
     element: <ProtectedRoute />,
@@ -23,6 +28,7 @@ export const router = createBrowserRouter([
           { index: true, Component: AdminDashboard },
           { path: "atas", Component: AdminAtas },
           { path: "categorias", Component: AdminCategories },
+          { path: "usuarios", Component: AdminUsuarios }
         ],
       },
     ],

@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import {
   LayoutDashboard, FileText, FolderTree, UploadCloud, Trash2,
   Users, ShieldAlert, BarChart3, LogOut, Menu, X, ChevronDown, Bell,
+  User,
 } from "lucide-react";
 import logoSbs from '../../imgs/logosbs.png'
 
@@ -24,6 +25,8 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     items: [
       { label: "Atas", path: "/admin/atas", icon: <FileText className="w-4 h-4" /> },
       { label: "Categorias", path: "/admin/categorias", icon: <FolderTree className="w-4 h-4" /> },
+      { label: "Usuários", path: "/admin/usuarios", icon: <User className="w-4 h-4" /> },
+
      // { label: "Uploads", path: "/admin/uploads", icon: <UploadCloud className="w-4 h-4" /> },
      // { label: "Lixeira", path: "/admin/lixeira", icon: <Trash2 className="w-4 h-4" /> },
     ],
