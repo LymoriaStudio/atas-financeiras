@@ -10,6 +10,8 @@ import { AdminUsuarios } from "./components/admin/AdminUsuarios";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthCallback } from "./components/AuthCallback";
 import { RedefinirSenha } from "./pages/RedefinirSenha";
+import { PerfilPage } from "./pages/PerfilAdmin";
+
 
 export const router = createBrowserRouter([
   { path: "/", Component: HomeAta },
@@ -28,7 +30,9 @@ export const router = createBrowserRouter([
           { index: true, Component: AdminDashboard },
           { path: "atas", Component: AdminAtas },
           { path: "categorias", Component: AdminCategories },
-          { path: "usuarios", Component: AdminUsuarios }
+          { path: "usuarios", Component: AdminUsuarios },
+          { path: "perfil", Component: PerfilPage }
+
         ],
       },
     ],

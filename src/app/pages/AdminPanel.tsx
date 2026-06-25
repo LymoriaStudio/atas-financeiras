@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import {
-  LayoutDashboard, FileText, FolderTree, UploadCloud, Trash2,
-  Users, ShieldAlert, BarChart3, LogOut, Menu, X, ChevronDown, Bell,
-  User,
+  LayoutDashboard, FileText, FolderTree,
+  LogOut, Menu, X, ChevronDown, Bell,
+  User, KeyRound,
 } from "lucide-react";
-import logoSbs from '../../imgs/logosbs.png'
+import { supabase } from "../../lib/supabase";
+import { getUsuarioById, type Usuario } from "../../lib/api/usuarioService";
+import logoSbs from '../../imgs/logosbs.png';
 
 interface NavItem {
   label: string;
@@ -23,51 +25,72 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
   {
     title: "Documentos",
     items: [
-      { label: "Atas", path: "/admin/atas", icon: <FileText className="w-4 h-4" /> },
+      { label: "Atas",       path: "/admin/atas",       icon: <FileText className="w-4 h-4" /> },
       { label: "Categorias", path: "/admin/categorias", icon: <FolderTree className="w-4 h-4" /> },
-      { label: "Usuários", path: "/admin/usuarios", icon: <User className="w-4 h-4" /> },
-
-     // { label: "Uploads", path: "/admin/uploads", icon: <UploadCloud className="w-4 h-4" /> },
-     // { label: "Lixeira", path: "/admin/lixeira", icon: <Trash2 className="w-4 h-4" /> },
+      { label: "Usuários",   path: "/admin/usuarios",   icon: <User className="w-4 h-4" /> },
     ],
   },
-  // {
-  //   title: "Credenciamento",
-  //   items: [
-  //     { label: "Usuários", path: "/admin/usuarios", icon: <Users className="w-4 h-4" /> },
-  //     //{ label: "Permissões", path: "/admin/permissoes", icon: <ShieldAlert className="w-4 h-4" /> },
-  //     { label: "Relatórios", path: "/admin/relatorios", icon: <BarChart3 className="w-4 h-4" /> },
-  //   ],
-  // },
 ];
 
-const HEADER_INFO: Record<string, { title: string; subtitle: string }> = {
-  "/admin": { title: "Dashboard", subtitle: "Visão geral do sistema" },
-  "/admin/atas": { title: "Atas", subtitle: "Gerencie todas as atas cadastradas" },
-  "/admin/categorias": { title: "Categorias", subtitle: "Organize as categorias das atas" },
-  "/admin/uploads": { title: "Uploads", subtitle: "Gerencie os arquivos de apoio" },
-  "/admin/lixeira": { title: "Lixeira", subtitle: "Itens removidos recentemente" },
-  "/admin/usuarios": { title: "Usuários", subtitle: "Gestão de usuários do sistema" },
-  "/admin/permissoes": { title: "Permissões", subtitle: "Matriz de permissões de acesso" },
-  "/admin/relatorios": { title: "Relatórios", subtitle: "Relatórios estatísticos do sistema" },
+const HEADER_INFO: Record<string, { title: string }> = {
+  "/admin":            { title: "Dashboard" },
+  "/admin/atas":       { title: "Atas" },
+  "/admin/categorias": { title: "Categorias" },
+  "/admin/usuarios":   { title: "Usuários" },
+  "/admin/perfil":     { title: "Meu Perfil" },
+  "/admin/uploads":    { title: "Uploads" },
+  "/admin/lixeira":    { title: "Lixeira" },
+  "/admin/permissoes": { title: "Permissões" },
+  "/admin/relatorios": { title: "Relatórios" },
 };
+
+const ROLE_LABEL: Record<string, string> = {
+  admin:  "Administrador",
+  editor: "Editor",
+  viewer: "Visualizador",
+};
+
+const NOTIFICATIONS = [
+  { id: 1, text: "Nova ata publicada",   time: "Há 5 min" },
+  { id: 2, text: "Categoria atualizada", time: "Há 1h" },
+];
 
 export function AdminPanel() {
   const location = useLocation();
   const navigate = useNavigate();
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notifOpen,   setNotifOpen]   = useState(false);
+  const [usuario,     setUsuario]     = useState<Usuario | null>(null);
 
-  const header = HEADER_INFO[location.pathname] ?? { title: "Admin", subtitle: "" };
+  const header = HEADER_INFO[location.pathname] ?? { title: "Admin" };
 
-  const handleLogout = () => {
-    // limpe seu token/estado de auth aqui, se houver
+  // ── Carrega usuário logado ────────────────────────────────────────────────
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await getUsuarioById(user.id);
+      if (data) setUsuario(data);
+    }
+    load();
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     navigate("/login");
   };
 
+  const closeAll = () => { setProfileOpen(false); setNotifOpen(false); };
+
+  // Iniciais para fallback do avatar
+  const initials = (usuario?.full_name ?? "AD")
+    .split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+
   return (
     <div className="min-h-screen flex bg-[#F8FAFC] text-slate-900">
-   
+
       {/* SIDEBAR — desktop */}
       <aside className="hidden lg:flex flex-col w-60 shrink-0 bg-[#1E293B] text-white">
         <SidebarContent currentPath={location.pathname} onLogout={handleLogout} />
@@ -78,82 +101,138 @@ export function AdminPanel() {
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
           <aside className="relative w-64 bg-[#1E293B] text-white flex flex-col z-10">
-             
-            <button
-              className="absolute top-4 right-4 text-slate-400 hover:text-white"
-              onClick={() => setSidebarOpen(false)}
-            >
+            <button className="absolute top-4 right-4 text-slate-400 hover:text-white" onClick={() => setSidebarOpen(false)}>
               <X className="w-5 h-5" />
             </button>
-            <SidebarContent
-              currentPath={location.pathname}
-              onLogout={handleLogout}
-              onNavigate={() => setSidebarOpen(false)}
-            />
+            <SidebarContent currentPath={location.pathname} onLogout={handleLogout} onNavigate={() => setSidebarOpen(false)} />
           </aside>
         </div>
       )}
 
       {/* MAIN */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* TOPBAR */}
+
+        {/* ── TOPBAR ── */}
         <header className="h-[72px] bg-white border-b border-slate-200 flex items-center justify-between px-6 lg:px-8 shrink-0">
+
+          {/* Left */}
           <div className="flex items-center gap-3">
-            <button
-              className="lg:hidden text-slate-500 hover:text-slate-800 transition-colors"
-              onClick={() => setSidebarOpen(true)}
-            >
+            <button className="lg:hidden text-slate-500 hover:text-slate-800 transition-colors" onClick={() => setSidebarOpen(true)}>
               <Menu className="w-5 h-5" />
             </button>
             <div>
-              <p className="text-gray-500 font-medium">Painel {">"} <span className="text-gray-900 font-medium">{header.title}</span></p>
-           
+              <p className="text-base font-bold text-slate-900 leading-tight">{header.title}</p>
+              <p className="text-xs text-blue-500 font-medium leading-tight">Bem-vindo de volta!</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-          
-       {/* {     <button className="relative w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors">
-              <Bell className="w-[18px] h-[18px]" />
-              <span className="absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                3
-              </span>
-            </button> */}
+          {/* Right */}
+          <div className="flex items-center gap-3">
 
+            {/* Bell */}
             <div className="relative">
               <button
-                onClick={() => setProfileOpen((p) => !p)}
+                onClick={() => { setNotifOpen((p) => !p); setProfileOpen(false); }}
+                className="relative w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
+              >
+                <Bell className="w-[18px] h-[18px]" />
+                {NOTIFICATIONS.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {NOTIFICATIONS.length}
+                  </span>
+                )}
+              </button>
+
+              {notifOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={closeAll} />
+                  <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl z-20 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-slate-100">
+                      <p className="text-sm font-bold text-slate-800">Notificações</p>
+                    </div>
+                    {NOTIFICATIONS.map((n) => (
+                      <div key={n.id} className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                        <p className="text-xs font-semibold text-slate-700">{n.text}</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">{n.time}</p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Divider */}
+            <div className="w-px h-8 bg-slate-200" />
+
+            {/* Profile */}
+            <div className="relative">
+              <button
+                onClick={() => { setProfileOpen((p) => !p); setNotifOpen(false); }}
                 className="flex items-center gap-2.5 pl-1 pr-2 py-1 rounded-full hover:bg-slate-50 transition-colors"
               >
-                <div className="w-9 h-9 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center text-slate-600 font-bold text-xs uppercase select-none">
-                  AD
-                </div>
+                {/* Avatar */}
+                {usuario?.avatar_url ? (
+                  <img
+                    src={usuario.avatar_url}
+                    alt={usuario.full_name ?? ""}
+                    className="w-9 h-9 rounded-full object-cover border border-slate-300"
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center text-slate-600 font-bold text-xs uppercase select-none">
+                    {initials}
+                  </div>
+                )}
+
                 <div className="hidden sm:block text-left leading-tight">
-                  <p className="text-sm font-semibold text-slate-800">Administrador</p>
-                  <p className="text-xs text-blue-600 font-medium">Gerente Geral</p>
+                  <p className="text-sm font-bold text-slate-800">
+                    {usuario?.full_name ?? "Administrador"}
+                  </p>
+                  <p className="text-xs text-slate-400 font-medium">
+                    {ROLE_LABEL[usuario?.role ?? ""] ?? usuario?.role ?? "—"}
+                  </p>
                 </div>
                 <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${profileOpen ? "rotate-180" : ""}`} />
               </button>
 
               {profileOpen && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setProfileOpen(false)} />
-                  <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-lg shadow-lg z-20 overflow-hidden">
+                  <div className="fixed inset-0 z-10" onClick={closeAll} />
+                  <div className="absolute right-0 top-full mt-2 w-52 bg-white border border-slate-100 rounded-2xl shadow-xl z-20 overflow-hidden py-1">
+
+                    <button
+                      onClick={() => { closeAll(); navigate("/admin/perfil"); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <User className="w-4 h-4 text-slate-400" />
+                      Meu Perfil
+                    </button>
+
+                    <button
+                      onClick={() => { closeAll(); navigate("/admin/perfil"); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <KeyRound className="w-4 h-4 text-slate-400" />
+                      Alterar Senha
+                    </button>
+
+                    <div className="my-1 border-t border-slate-100" />
+
                     <button
                       onClick={handleLogout}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-slate-600 hover:bg-red-50 hover:text-red-500 transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors font-semibold"
                     >
                       <LogOut className="w-4 h-4" />
-                      Sair do painel
+                      Sair
                     </button>
                   </div>
                 </>
               )}
             </div>
+
           </div>
         </header>
 
-        {/* CONTEÚDO — aqui entra a rota filha ativa */}
+        {/* CONTEÚDO */}
         <main className="flex-1 overflow-auto p-6 lg:p-8">
           <div className="max-full mx-auto">
             <Outlet />
@@ -170,10 +249,7 @@ function SidebarContent({
   return (
     <>
       <div className="p-6 border-b border-slate-700/50 flex-shrink-0">
-        <div className="flex items-center gap-3">
-       <img src={logoSbs} alt="" className="w-[80%]"/>
-
-        </div>
+        <img src={logoSbs} alt="" className="w-[80%]" />
       </div>
 
       <nav className="flex-1 p-4 flex flex-col gap-6 overflow-y-auto">
@@ -191,9 +267,7 @@ function SidebarContent({
                       to={item.path}
                       onClick={onNavigate}
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-150 ${
-                        active
-                          ? "bg-blue-600 text-white shadow-sm"
-                          : "text-slate-300 hover:text-white hover:bg-slate-800"
+                        active ? "bg-blue-600 text-white shadow-sm" : "text-slate-300 hover:text-white hover:bg-slate-800"
                       }`}
                     >
                       <span className={active ? "text-white" : "text-slate-400"}>{item.icon}</span>
