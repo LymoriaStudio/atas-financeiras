@@ -6,6 +6,7 @@ import {
 import {
   getUsuarios, createUsuario, updateUsuario, deleteUsuario, type Usuario,
 } from "../../../lib/api/usuarioService";
+import { logAtividade } from "../../../lib/api/atividadesService";
 
 const ROLES = ["admin", "editor", "viewer"];
 
@@ -121,11 +122,17 @@ export function AdminUsuarios() {
 
     if (modal === "add") {
       const { data, error } = await createUsuario(form);
-      if (!error && data) setUsuarios((prev) => [data, ...prev]);
+      if (!error && data) {
+        setUsuarios((prev) => [data, ...prev]);
+        logAtividade("cadastrou um novo usuário", form.full_name);
+      }
       else { setErrorMsg("Erro ao criar usuário. Tente novamente."); setSubmitting(false); return; }
     } else if (modal === "edit" && editingId) {
       const { data, error } = await updateUsuario(editingId, form);
-      if (!error && data) setUsuarios((prev) => prev.map((u) => (u.id === editingId ? data : u)));
+      if (!error && data) {
+        setUsuarios((prev) => prev.map((u) => (u.id === editingId ? data : u)));
+        logAtividade("editou dados do usuário", data.full_name);
+      }
       else { setErrorMsg("Erro ao salvar alterações. Tente novamente."); setSubmitting(false); return; }
     }
 
@@ -136,9 +143,14 @@ export function AdminUsuarios() {
 
   const confirmDelete = async () => {
     if (!deletingId) return;
+    const deletingUser = usuarios.find((u) => u.id === deletingId);
     const { error } = await deleteUsuario(deletingId);
-    if (!error) setUsuarios((prev) => prev.filter((u) => u.id !== deletingId));
-    else setErrorMsg("Erro ao excluir usuário.");
+    if (!error) {
+      setUsuarios((prev) => prev.filter((u) => u.id !== deletingId));
+      logAtividade("excluiu um usuário", deletingUser?.full_name);
+    } else {
+      setErrorMsg("Erro ao excluir usuário.");
+    }
     setDeletingId(null);
   };
 

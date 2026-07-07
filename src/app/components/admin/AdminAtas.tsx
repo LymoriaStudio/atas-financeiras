@@ -1,12 +1,18 @@
-import { useEffect, useState } from "react";
-import { Plus, Search, ChevronDown, Eye, Pencil, Trash2, X, Upload, Check, Loader2, Download, FileX } from "lucide-react";
-import { getAtas, createAta, updateAta, deleteAta, type Ata } from "../../../lib/api/atasService";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router";
+import * as XLSX from "xlsx-js-style";
+import {
+  Plus, Search, ChevronDown, Eye, Pencil, Trash2, X, Upload, Check, Loader2,
+  Download, FileX, ArrowUpDown, Layers, Calendar, FileSpreadsheet, FileCheck,
+} from "lucide-react";
+import { getAtas, updateAta, deleteAta, type Ata } from "../../../lib/api/atasService";
 import { uploadAtaFile } from "../../../lib/api/storageService";
 import { getCategorias, type Categoria } from "../../../lib/api/categoriasService";
+import { logAtividade } from "../../../lib/api/atividadesService";
 
 const TIPOS = ["Estatuto", "Financeiro", "Atas"];
 
-type ModalMode = "add" | "edit" | null;
+type ModalMode = "edit" | null;
 
 type FormState = {
   numero: string;
@@ -55,9 +61,11 @@ function getLatestFile(ata: Ata) {
   return ata.arquivos[ata.arquivos.length - 1];
 }
 
-const STATUS_FILTERS = ["Todos", "Publicado", "Rascunho", "Arquivado"];
+const STATUS_OPTIONS = ["Todos", "Publicado", "Rascunho", "Arquivado"];
+type SortField = "numero" | "data";
 
 export function AdminAtas() {
+  const navigate = useNavigate();
   const [atas, setAtas] = useState<Ata[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -69,6 +77,11 @@ export function AdminAtas() {
   const [query, setQuery] = useState("");
   const [filterCat, setFilterCat] = useState("Todas");
   const [filterStatus, setFilterStatus] = useState("Todos");
+  const [filterYear, setFilterYear] = useState("Todos");
+  const [sortField, setSortField] = useState<SortField>("numero");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [pageSize, setPageSize] = useState(10);
+
   const [modal, setModal] = useState<ModalMode>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -109,26 +122,112 @@ export function AdminAtas() {
 
   const categoriaMap = Object.fromEntries(categorias.map((c) => [c.id, c]));
 
-  const filtered = atas.filter((a) => {
-    const q = query.toLowerCase();
-    const catIds = toArray((a as any).categoria_id);
-    const matchesCat = filterCat === "Todas" || catIds.some((id) => categoriaMap[id]?.name === filterCat);
-    const matchesStatus = filterStatus === "Todos" || a.status === filterStatus;
-    return (
-      matchesCat &&
-      matchesStatus &&
-      (a.titulo.toLowerCase().includes(q) || a.numero.toLowerCase().includes(q))
-    );
-  });
+  const availableYears = useMemo(
+    () => [...new Set(atas.map((a) => a.data?.slice(0, 4)).filter(Boolean))].sort().reverse(),
+    [atas]
+  );
 
-  const openAdd = () => {
-    setForm(emptyForm);
-    setModal("add");
-    setEditingId(null);
-    setSelectedFile(null);
-    setExistingArquivos([]);
-    setParticipanteInput("");
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortOrder("desc");
+    }
   };
+
+  const processedAtas = useMemo(() => {
+    const q = query.toLowerCase();
+    return atas
+      .filter((a) => {
+        const catIds = toArray((a as any).categoria_id);
+        const matchesCat = filterCat === "Todas" || catIds.some((id) => categoriaMap[id]?.name === filterCat);
+        const matchesStatus = filterStatus === "Todos" || a.status === filterStatus;
+        const matchesYear = filterYear === "Todos" || a.data?.slice(0, 4) === filterYear;
+        const matchesQuery = a.titulo.toLowerCase().includes(q) || a.numero.toLowerCase().includes(q);
+        return matchesCat && matchesStatus && matchesYear && matchesQuery;
+      })
+      .sort((a, b) => {
+        const comparison = sortField === "numero" ? a.numero.localeCompare(b.numero) : a.data.localeCompare(b.data);
+        return sortOrder === "desc" ? -comparison : comparison;
+      });
+  }, [atas, query, filterCat, filterStatus, filterYear, sortField, sortOrder, categoriaMap]);
+
+  function categoriasLabel(ata: Ata) {
+    const ids = toArray((ata as any).categoria_id);
+    if (ids.length === 0) return "Geral";
+    return ids.map((id) => categoriaMap[id]?.name).filter(Boolean).join(", ") || "Geral";
+  }
+
+  function handleExportExcel() {
+    const header = ["Nº da Ata", "Título", "Categoria", "Responsável", "Data", "Status"];
+    const rows = processedAtas.map((a) => [
+      a.numero, a.titulo, categoriasLabel(a), a.presidente, formatDate(a.data), a.status,
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    ws["!cols"] = header.map((h, col) => {
+      const maxLen = Math.max(h.length, ...rows.map((r) => String(r[col] ?? "").length));
+      return { wch: Math.min(Math.max(maxLen + 2, 10), 60) };
+    });
+
+    const border = {
+      top: { style: "thin", color: { rgb: "D1D5DB" } },
+      bottom: { style: "thin", color: { rgb: "D1D5DB" } },
+      left: { style: "thin", color: { rgb: "D1D5DB" } },
+      right: { style: "thin", color: { rgb: "D1D5DB" } },
+    };
+    const range = XLSX.utils.decode_range(ws["!ref"] as string);
+    for (let R = range.s.r; R <= range.e.r; R++) {
+      for (let C = range.s.c; C <= range.e.c; C++) {
+        const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+        if (!cell) continue;
+        cell.s = R === 0
+          ? { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "0F172A" } }, alignment: { horizontal: "left", vertical: "center" }, border }
+          : { border, alignment: { vertical: "center" } };
+      }
+    }
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Atas");
+    XLSX.writeFile(wb, `atas_${new Date().toISOString().split("T")[0]}.xlsx`);
+  }
+
+  function handleExportPDF() {
+    const esc = (s: string) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string));
+    const dataEmissao = new Date().toLocaleString("pt-BR");
+    const rowsHtml = processedAtas.map((a) => `<tr>
+        <td>${esc(a.numero)}</td><td>${esc(a.titulo)}</td><td>${esc(categoriasLabel(a))}</td>
+        <td>${esc(a.presidente)}</td><td>${esc(formatDate(a.data))}</td><td>${esc(a.status)}</td>
+      </tr>`).join("");
+
+    const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8" /><title>Atas</title>
+<style>
+  * { box-sizing: border-box; } body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; margin: 40px; }
+  .header h1 { font-size: 24px; font-weight: 800; margin: 0; color: #0f172a; }
+  .header .sub { font-size: 13px; color: #64748b; margin-top: 4px; }
+  .divider { height: 3px; background: linear-gradient(90deg, #2563eb, #93c5fd); border: none; margin: 18px 0 24px; border-radius: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th { background: #0f172a; color: #fff; text-align: left; padding: 10px 12px; text-transform: uppercase; font-size: 10px; }
+  tbody td { padding: 9px 12px; border-bottom: 1px solid #e2e8f0; }
+  tbody tr:nth-child(even) { background: #f8fafc; }
+  .footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center; }
+  @media print { body { margin: 12mm; } thead th, tbody tr:nth-child(even) { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style></head><body>
+  <div class="header"><h1>Gestão de Atas</h1><div class="sub">Emitido em ${esc(dataEmissao)}</div></div>
+  <hr class="divider" />
+  <table><thead><tr><th>Nº da Ata</th><th>Título</th><th>Categoria</th><th>Responsável</th><th>Data</th><th>Status</th></tr></thead>
+  <tbody>${rowsHtml}</tbody></table>
+  <div class="footer">Documento gerado pelo Sistema de Gestão de Atas</div>
+</body></html>`;
+
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    win.print();
+  }
 
   const openEdit = (ata: Ata) => {
     setForm({
@@ -164,15 +263,6 @@ export function AdminAtas() {
 
   const openView = (ata: Ata) => setViewingAta(ata);
   const closeView = () => setViewingAta(null);
-
-  const toggleDepartamento = (id: string) => {
-    setForm((prev) => ({
-      ...prev,
-      categoria_id: prev.categoria_id.includes(id)
-        ? prev.categoria_id.filter((d) => d !== id)
-        : [...prev.categoria_id, id],
-    }));
-  };
 
   const handleParticipanteInputChange = (value: string) => {
     if (value.includes(",")) {
@@ -235,19 +325,11 @@ export function AdminAtas() {
       status: form.status,
     } as any;
 
-    if (modal === "add") {
-      const { data, error } = await createAta(payload);
-      if (!error && data) {
-        setAtas((prev) => [data, ...prev]);
-      } else {
-        setErrorMsg("Erro ao criar ata. Tente novamente.");
-        setSubmitting(false);
-        return;
-      }
-    } else if (modal === "edit" && editingId) {
+    if (editingId) {
       const { data, error } = await updateAta(editingId, payload);
       if (!error && data) {
         setAtas((prev) => prev.map((a) => (a.id === editingId ? data : a)));
+        logAtividade("editou uma ata", data.titulo);
       } else {
         setErrorMsg("Erro ao salvar alterações. Tente novamente.");
         setSubmitting(false);
@@ -262,162 +344,198 @@ export function AdminAtas() {
 
   const confirmDelete = async () => {
     if (!deletingId) return;
+    const deletingAta = atas.find((a) => a.id === deletingId);
     const { error } = await deleteAta(deletingId);
     if (!error) {
       setAtas((prev) => prev.filter((a) => a.id !== deletingId));
+      logAtividade("moveu uma ata para a lixeira", deletingAta?.titulo);
     } else {
-      setErrorMsg("Erro ao excluir o documento.");
+      setErrorMsg("Erro ao mover o documento para a lixeira.");
     }
     setDeletingId(null);
+  };
+
+  const handleDownload = (ata: Ata) => {
+    logAtividade("realizou download de", getLatestFile(ata)?.nome ?? ata.titulo);
   };
 
   const viewingFile = viewingAta ? getLatestFile(viewingAta) : null;
 
   return (
-    <div className="p-4 sm:p-4 lg:p-4">
+    <div className="p-4 space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6 sm:mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
         <div>
-          <h1 style={{ color: "#111827", fontSize: "1.5rem", fontWeight: 700 }}>Gerenciar Atas</h1>
-          <p className="text-gray-400 text-sm mt-1">Adicione, edite, categorize ou exclua documentos</p>
+          <h1 style={{ color: "#111827", fontSize: "1.5rem", fontWeight: 700 }}>Portal Geral de Atas</h1>
+          <p className="text-gray-400 text-sm mt-1">Consulte, exporte e edite documentos e atas registradas</p>
         </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center justify-center gap-2 text-white text-sm px-5 py-2.5 rounded-xl hover:opacity-90 transition-opacity w-full sm:w-auto shrink-0"
-          style={{ backgroundColor: "#111827" }}
-        >
-          <Plus size={16} />
-          Nova Ata
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleExportExcel}
+            className="flex items-center gap-1.5 px-3 py-2 border border-emerald-100 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-all"
+            title="Exportar para Excel"
+          >
+            <FileSpreadsheet size={16} /> <span className="hidden md:inline">Exportar Excel</span>
+          </button>
+          <button
+            onClick={handleExportPDF}
+            className="flex items-center gap-1.5 px-3 py-2 border border-red-100 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold transition-all"
+            title="Exportar relatório em PDF"
+          >
+            <FileCheck size={16} /> <span className="hidden md:inline">Exportar PDF</span>
+          </button>
+          <button
+            onClick={() => navigate("/admin/atas/nova")}
+            className="flex items-center gap-1.5 px-4 py-2.5 text-white text-sm font-bold rounded-xl hover:opacity-90 transition-opacity shrink-0"
+            style={{ backgroundColor: "#111827" }}
+          >
+            <Plus size={16} /> Criar Nova Ata
+          </button>
+        </div>
       </div>
 
-      {/* Search + Category filter */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="relative flex-1">
+      {/* Search + filters */}
+      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+        <div className="relative">
           <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por título ou número..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200"
+            placeholder="Pesquise por número da ata, título ou palavras presentes no conteúdo..."
+            className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200"
           />
         </div>
-        <div className="relative w-full sm:w-48">
-          <select
-            value={filterCat}
-            onChange={(e) => setFilterCat(e.target.value)}
-            className="w-full appearance-none pl-4 pr-9 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none"
-          >
-            {["Todas", ...categorias.map((c) => c.name)].map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        </div>
-      </div>
 
-      {/* Status filter buttons */}
-      <div className="flex gap-2 flex-wrap mb-6">
-        {STATUS_FILTERS.map((s) => (
-          <button
-            key={s}
-            onClick={() => setFilterStatus(s)}
-            className="px-4 py-1.5 rounded-full text-xs font-medium border transition-all"
-            style={
-              filterStatus === s
-                ? { backgroundColor: "#111827", color: "#fff", borderColor: "#111827" }
-                : { backgroundColor: "#fff", color: "#6B7280", borderColor: "#E5E7EB" }
-            }
-          >
-            {s}
-          </button>
-        ))}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Filtrar Categoria</label>
+            <div className="relative">
+              <Layers size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <select
+                value={filterCat}
+                onChange={(e) => setFilterCat(e.target.value)}
+                className="w-full appearance-none pl-9 pr-8 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
+              >
+                {["Todas", ...categorias.map((c) => c.name)].map((c) => <option key={c}>{c}</option>)}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Filtrar Status</label>
+            <div className="relative">
+              <FileCheck size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full appearance-none pl-9 pr-8 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
+              >
+                {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Filtrar Período (Ano)</label>
+            <div className="relative">
+              <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <select
+                value={filterYear}
+                onChange={(e) => setFilterYear(e.target.value)}
+                className="w-full appearance-none pl-9 pr-8 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
+              >
+                <option value="Todos">Sempre</option>
+                {availableYears.map((year) => <option key={year} value={year}>Ano {year}</option>)}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+        </div>
       </div>
 
       {errorMsg && (
-        <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">
-          {errorMsg}
-        </div>
+        <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{errorMsg}</div>
       )}
 
       {loading ? (
         <div className="py-16 flex items-center justify-center gap-2 text-gray-400 text-sm bg-white rounded-2xl border border-gray-100 shadow-sm">
-          <Loader2 size={16} className="animate-spin" />
-          Carregando atas...
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="py-16 text-center text-gray-400 text-sm bg-white rounded-2xl border border-gray-100 shadow-sm">
-          Nenhum documento encontrado.
+          <Loader2 size={16} className="animate-spin" /> Carregando atas...
         </div>
       ) : (
-        <>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
           {/* Desktop table */}
-          <div className="hidden md:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="grid grid-cols-12 px-6 py-3.5 border-b border-gray-100 bg-gray-50">
-              <div className="col-span-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Nº da ATA</div>
-              <div className="col-span-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Título</div>
-              <div className="col-span-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Categoria</div>
-              <div className="col-span-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Data</div>
-              <div className="col-span-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</div>
-              <div className="col-span-1 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">Ações</div>
-            </div>
-
-            {filtered.map((ata) => {
-              const deps = toArray((ata as any).categoria_id);
-              return (
-                <div key={ata.id} className="grid grid-cols-12 px-6 py-4 border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors items-center">
-                  <div className="col-span-3 text-gray-700 text-xs font-medium truncate pr-2">{ata.numero}</div>
-                  <div className="col-span-4 text-gray-600 text-sm truncate pr-4">{ata.titulo}</div>
-                  <div className="col-span-2 flex flex-wrap gap-1">
-                    {deps.length === 0 ? (
-                      <span className="text-gray-300 text-xs">—</span>
-                    ) : (
-                      deps.map((id) => {
-                        const cat = categoriaMap[id];
-                        if (!cat) return null;
-                        return (
-                          <span
-                            key={id}
-                            className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium"
-                            style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
-                          >
-                            {cat.name}
-                          </span>
-                        );
-                      })
-                    )}
-                  </div>
-                  <div className="col-span-1 text-gray-500 text-xs">{formatDate(ata.data)}</div>
-                  <div className="col-span-1">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                      ata.status === "Publicado"
-                        ? "bg-green-50 text-green-700"
-                        : ata.status === "Arquivado"
-                        ? "bg-gray-100 text-gray-500"
-                        : "bg-amber-50 text-amber-700"
-                    }`}>
-                      {ata.status}
-                    </span>
-                  </div>
-                  <div className="col-span-1 flex items-center justify-end gap-1">
-                    <button onClick={() => openView(ata)} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors" title="Visualizar">
-                      <Eye size={14} />
-                    </button>
-                    <button onClick={() => openEdit(ata)} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors" title="Editar">
-                      <Pencil size={13} />
-                    </button>
-                    <button onClick={() => setDeletingId(ata.id)} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors" title="Excluir">
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[820px]">
+              <thead>
+                <tr className="bg-gray-50 text-gray-400 uppercase tracking-widest text-[10px] font-bold border-b border-gray-100">
+                  <th className="py-4 px-6 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort("numero")}>
+                    <div className="flex items-center gap-1.5">Nº da Ata <ArrowUpDown size={12} /></div>
+                  </th>
+                  <th className="py-4 px-6">Título do Documento</th>
+                  <th className="py-4 px-6">Categoria</th>
+                  <th className="py-4 px-6">Responsável Presidente</th>
+                  <th className="py-4 px-6 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort("data")}>
+                    <div className="flex items-center gap-1.5">Data <ArrowUpDown size={12} /></div>
+                  </th>
+                  <th className="py-4 px-6">Status</th>
+                  <th className="py-4 px-6 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 text-sm">
+                {processedAtas.map((ata) => {
+                  const deps = toArray((ata as any).categoria_id);
+                  return (
+                    <tr key={ata.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="py-4 px-6 font-semibold text-gray-900">{ata.numero}</td>
+                      <td className="py-4 px-6 text-gray-600 max-w-[240px]">{ata.titulo}</td>
+                      <td className="py-4 px-6">
+                        <div className="flex flex-wrap gap-1">
+                          {deps.length === 0 ? (
+                            <span className="text-gray-300 text-xs">Geral</span>
+                          ) : (
+                            deps.map((id) => {
+                              const cat = categoriaMap[id];
+                              if (!cat) return null;
+                              return (
+                                <span key={id} className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase" style={{ backgroundColor: `${cat.color}15`, color: cat.color }}>
+                                  {cat.name}
+                                </span>
+                              );
+                            })
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 text-gray-500">{ata.presidente || "-"}</td>
+                      <td className="py-4 px-6 text-gray-500">{formatDate(ata.data)}</td>
+                      <td className="py-4 px-6">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                          ata.status === "Publicado" ? "bg-emerald-50 text-emerald-700" : ata.status === "Arquivado" ? "bg-gray-100 text-gray-500" : "bg-amber-50 text-amber-700"
+                        }`}>
+                          {ata.status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => openView(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors" title="Visualizar"><Eye size={14} /></button>
+                          <button onClick={() => openEdit(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors" title="Editar"><Pencil size={14} /></button>
+                          <button onClick={() => setDeletingId(ata.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors" title="Excluir"><Trash2 size={14} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {processedAtas.length === 0 && (
+                  <tr><td colSpan={7} className="text-center py-16 text-gray-400 text-sm">Nenhuma ata encontrada para os filtros selecionados.</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
 
           {/* Mobile cards */}
-          <div className="md:hidden flex flex-col gap-3">
-            {filtered.map((ata) => {
+          <div className="md:hidden flex flex-col gap-3 p-4">
+            {processedAtas.map((ata) => {
               const deps = toArray((ata as any).categoria_id);
               return (
                 <div key={ata.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
@@ -427,57 +545,69 @@ export function AdminAtas() {
                       <p className="text-gray-800 text-sm font-medium mt-0.5 truncate">{ata.titulo}</p>
                     </div>
                     <span className={`shrink-0 inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                      ata.status === "Publicado"
-                        ? "bg-green-50 text-green-700"
-                        : ata.status === "Arquivado"
-                        ? "bg-gray-100 text-gray-500"
-                        : "bg-amber-50 text-amber-700"
+                      ata.status === "Publicado" ? "bg-emerald-50 text-emerald-700" : ata.status === "Arquivado" ? "bg-gray-100 text-gray-500" : "bg-amber-50 text-amber-700"
                     }`}>
                       {ata.status}
                     </span>
                   </div>
-
+                  <p className="text-gray-400 text-xs mb-1">Presidente: {ata.presidente || "-"}</p>
                   <p className="text-gray-400 text-xs mb-2">{formatDate(ata.data)}</p>
-
                   <div className="flex flex-wrap gap-1 mb-3">
                     {deps.length === 0 ? (
-                      <span className="text-gray-300 text-xs">Sem departamento</span>
+                      <span className="text-gray-300 text-xs">Sem categoria</span>
                     ) : (
                       deps.map((id) => {
                         const cat = categoriaMap[id];
                         if (!cat) return null;
                         return (
-                          <span
-                            key={id}
-                            className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium"
-                            style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
-                          >
+                          <span key={id} className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: `${cat.color}15`, color: cat.color }}>
                             {cat.name}
                           </span>
                         );
                       })
                     )}
                   </div>
-
                   <div className="flex items-center justify-end gap-1 pt-2 border-t border-gray-50">
-                    <button onClick={() => openView(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
-                      <Eye size={15} />
-                    </button>
-                    <button onClick={() => openEdit(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors">
-                      <Pencil size={14} />
-                    </button>
-                    <button onClick={() => setDeletingId(ata.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
-                      <Trash2 size={14} />
-                    </button>
+                    <button onClick={() => openView(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"><Eye size={15} /></button>
+                    <button onClick={() => openEdit(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"><Pencil size={14} /></button>
+                    <button onClick={() => setDeletingId(ata.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
                   </div>
                 </div>
               );
             })}
+            {processedAtas.length === 0 && (
+              <div className="text-center py-16 text-gray-400 text-sm">Nenhuma ata encontrada para os filtros selecionados.</div>
+            )}
           </div>
-        </>
-      )}
 
-      <p className="text-gray-400 text-xs mt-3 text-right">{filtered.length} documento{filtered.length !== 1 ? "s" : ""}</p>
+          {/* Footer */}
+          <div className="p-6 border-t border-gray-50 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p className="text-xs text-gray-400 font-medium">
+              Exibindo {Math.min(processedAtas.length, pageSize)} do total de {processedAtas.length} registros filtrados
+            </p>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-400 font-medium whitespace-nowrap">Página:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(parseInt(e.target.value))}
+                  className="text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1 focus:outline-none"
+                >
+                  <option value={10}>10 registros</option>
+                  <option value={25}>25 registros</option>
+                  <option value={50}>50 registros</option>
+                  <option value={100}>100 registros</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-1 text-xs">
+                <button disabled className="p-1.5 border border-gray-200 rounded-md text-gray-300 cursor-not-allowed">&lt;</button>
+                <button className="w-7 h-7 bg-gray-900 text-white flex items-center justify-center rounded-md font-bold">1</button>
+                <button disabled className="p-1.5 border border-gray-200 rounded-md text-gray-300 cursor-not-allowed">&gt;</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Modal */}
       {modal && (
@@ -486,7 +616,7 @@ export function AdminAtas() {
 
             <div className="flex items-center justify-between px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 shrink-0">
               <h2 style={{ color: "#111827", fontWeight: 700 }}>
-                {modal === "add" ? "Nova Ata" : "Editar Ata"}
+                Editar Ata
               </h2>
               <button onClick={closeModal} className="text-gray-400 hover:text-gray-700 transition-colors">
                 <X size={18} />
@@ -494,29 +624,14 @@ export function AdminAtas() {
             </div>
 
             <div className="px-4 sm:px-6 py-4 sm:py-5 space-y-4 overflow-y-auto flex-1">
-              <div >
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nº da ATA</label>
-                  <input
-                    value={form.numero}
-                    onChange={(e) => setForm({ ...form, numero: e.target.value })}
-                    placeholder="ATA - 0001/2026.001"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
-                  />
-                </div>
-                {/* <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Tipo</label>
-                  <div className="relative">
-                    <select
-                      value={form.tipo}
-                      onChange={(e) => setForm({ ...form, tipo: e.target.value })}
-                      className="w-full appearance-none px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none"
-                    >
-                      {TIPOS.map((t) => <option key={t}>{t}</option>)}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                  </div>
-                </div> */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nº da ATA</label>
+                <input
+                  value={form.numero}
+                  onChange={(e) => setForm({ ...form, numero: e.target.value })}
+                  placeholder="ATA - 0001/2026.001"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
+                />
               </div>
 
               <div>
@@ -539,15 +654,6 @@ export function AdminAtas() {
                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
                   />
                 </div>
-                {/* <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Horário</label>
-                  <input
-                    type="time"
-                    value={form.horario}
-                    onChange={(e) => setForm({ ...form, horario: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
-                  />
-                </div> */}
                  <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Local</label>
                   <input
@@ -559,28 +665,15 @@ export function AdminAtas() {
                 </div>
               </div>
 
-              {/* <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-               
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Presidente</label>
-                  <input
-                    value={form.presidente}
-                    onChange={(e) => setForm({ ...form, presidente: e.target.value })}
-                    placeholder="Nome do presidente"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
-                  />
-                </div>
-              </div>
-
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Secretário</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Presidente</label>
                 <input
-                  value={form.secretario}
-                  onChange={(e) => setForm({ ...form, secretario: e.target.value })}
-                  placeholder="Nome do secretário"
+                  value={form.presidente}
+                  onChange={(e) => setForm({ ...form, presidente: e.target.value })}
+                  placeholder="Nome do presidente"
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
                 />
-              </div> */}
+              </div>
 
               {/* Participantes */}
               <div>
@@ -618,29 +711,29 @@ export function AdminAtas() {
                 />
               </div>
 
-          <div>
-  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Categoria</label>
-  {categoriasLoading ? (
-    <div className="flex items-center gap-2 text-gray-400 text-xs py-2">
-      <Loader2 size={13} className="animate-spin" />
-      Carregando categorias...
-    </div>
-  ) : (
-    <div className="relative">
-      <select
-        value={form.categoria_id[0] ?? ""}
-        onChange={(e) => setForm({ ...form, categoria_id: e.target.value ? [e.target.value] : [] })}
-        className="w-full appearance-none px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
-      >
-        <option value="">Selecione uma categoria...</option>
-        {categorias.map((cat) => (
-          <option key={cat.id} value={cat.id}>{cat.name}</option>
-        ))}
-      </select>
-      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-    </div>
-  )}
-</div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Categoria</label>
+                {categoriasLoading ? (
+                  <div className="flex items-center gap-2 text-gray-400 text-xs py-2">
+                    <Loader2 size={13} className="animate-spin" />
+                    Carregando categorias...
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <select
+                      value={form.categoria_id[0] ?? ""}
+                      onChange={(e) => setForm({ ...form, categoria_id: e.target.value ? [e.target.value] : [] })}
+                      className="w-full appearance-none px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
+                    >
+                      <option value="">Selecione uma categoria...</option>
+                      {categorias.map((cat) => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  </div>
+                )}
+              </div>
 
               {/* Status */}
               <div>
@@ -719,7 +812,7 @@ export function AdminAtas() {
                   <Loader2 size={15} className="animate-spin" />
                 ) : saved ? (
                   <><Check size={15} /> Salvo!</>
-                ) : modal === "add" ? "Adicionar" : "Salvar alterações"}
+                ) : "Salvar alterações"}
               </button>
             </div>
           </div>
@@ -742,6 +835,7 @@ export function AdminAtas() {
                     download={viewingFile.nome}
                     target="_blank"
                     rel="noreferrer"
+                    onClick={() => handleDownload(viewingAta)}
                     className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
                   >
                     <Download size={14} />
@@ -771,17 +865,17 @@ export function AdminAtas() {
       {deletingId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.4)" }}>
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 text-center">
-            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
-              <Trash2 size={20} className="text-red-500" />
+            <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={20} className="text-amber-500" />
             </div>
-            <h3 style={{ color: "#111827", fontWeight: 700, fontSize: "1rem" }} className="mb-2">Excluir documento?</h3>
-            <p className="text-gray-400 text-sm mb-6">Esta ação não pode ser desfeita. O documento será removido permanentemente.</p>
+            <h3 style={{ color: "#111827", fontWeight: 700, fontSize: "1rem" }} className="mb-2">Mover para a Lixeira?</h3>
+            <p className="text-gray-400 text-sm mb-6">O documento continuará disponível para recuperação ou exclusão definitiva na tela de Lixeira.</p>
             <div className="flex gap-3">
               <button onClick={() => setDeletingId(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors">
                 Cancelar
               </button>
-              <button onClick={confirmDelete} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors">
-                Excluir
+              <button onClick={confirmDelete} className="flex-1 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 transition-colors">
+                Mover para o Lixo
               </button>
             </div>
           </div>

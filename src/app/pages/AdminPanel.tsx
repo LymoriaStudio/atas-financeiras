@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import {
   LayoutDashboard, FileText, FolderTree,
   LogOut, Menu, X, ChevronDown, Bell,
-  User, KeyRound,
+  User, KeyRound, Trash2, ShieldCheck, BarChart3,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { getUsuarioById, type Usuario } from "../../lib/api/usuarioService";
@@ -27,7 +27,15 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     items: [
       { label: "Atas",       path: "/admin/atas",       icon: <FileText className="w-4 h-4" /> },
       { label: "Categorias", path: "/admin/categorias", icon: <FolderTree className="w-4 h-4" /> },
+      { label: "Lixeira",    path: "/admin/lixeira",    icon: <Trash2 className="w-4 h-4" /> },
+    ],
+  },
+  {
+    title: "Administração",
+    items: [
       { label: "Usuários",   path: "/admin/usuarios",   icon: <User className="w-4 h-4" /> },
+      { label: "Permissões", path: "/admin/permissoes", icon: <ShieldCheck className="w-4 h-4" /> },
+      { label: "Relatórios", path: "/admin/relatorios", icon: <BarChart3 className="w-4 h-4" /> },
     ],
   },
 ];
@@ -35,13 +43,13 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
 const HEADER_INFO: Record<string, { title: string }> = {
   "/admin":            { title: "Dashboard" },
   "/admin/atas":       { title: "Atas" },
+  "/admin/atas/nova":  { title: "Nova Ata" },
   "/admin/categorias": { title: "Categorias" },
-  "/admin/usuarios":   { title: "Usuários" },
-  "/admin/perfil":     { title: "Meu Perfil" },
-  "/admin/uploads":    { title: "Uploads" },
   "/admin/lixeira":    { title: "Lixeira" },
+  "/admin/usuarios":   { title: "Usuários" },
   "/admin/permissoes": { title: "Permissões" },
   "/admin/relatorios": { title: "Relatórios" },
+  "/admin/perfil":     { title: "Meu Perfil" },
 };
 
 const ROLE_LABEL: Record<string, string> = {

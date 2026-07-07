@@ -1,6 +1,6 @@
 import { LogIn, Menu, X } from "lucide-react";
 import { useState, useEffect } from "react";
-import vegasLogo from "../../imports/Ativo_1_4x.png";
+import vegasLogo from "../../imports/sbslogo.png";
 import { Link, useNavigate, useLocation } from "react-router";
 import { scrollIntent } from "../../utils/scrollIntent";
 

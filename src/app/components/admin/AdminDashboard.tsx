@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { FileText, Clock, TrendingUp, Download, CheckCircle, FolderOpen, Plus } from "lucide-react";
+import { FileText, TrendingUp, Download, CheckCircle, FolderOpen, Plus, User as UserIcon } from "lucide-react";
 import { useNavigate } from "react-router";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie,
 } from "recharts";
-import { getAtas, type Ata } from "../../../lib/api/atasService";
+import { getAtas, incrementDownloads, type Ata } from "../../../lib/api/atasService";
 import { getCategorias, type Categoria } from "../../../lib/api/categoriasService";
+import { getAtividadesRecentes, logAtividade, type Atividade } from "../../../lib/api/atividadesService";
 
 function formatDate(iso?: string) {
   if (!iso) return "-";
@@ -30,17 +31,31 @@ function getCatColorHex(color: string): string {
 
 const MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
-const activity = [
-  { action: "Ata publicada",        doc: "Balanço Semestral – Junho 2026",           time: "Há 2 dias" },
-  { action: "Documento editado",    doc: "Regimento Interno Atualizado",             time: "Há 5 dias" },
-  { action: "Nova ata adicionada",  doc: "Ata de Reunião – Aprovação de Orçamento", time: "Há 1 semana" },
-  { action: "Categoria alterada",   doc: "Relatório de Auditoria Interna",           time: "Há 2 semanas" },
-];
+const AVATAR_COLORS = ["#F97316", "#0F172A", "#10B981", "#3B82F6", "#EC4899", "#7C3AED"];
+
+function timeAgo(iso: string) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diffMs / 60000);
+  if (min < 1) return "Agora mesmo";
+  if (min < 60) return `Há ${min} min`;
+  const hrs = Math.floor(min / 60);
+  if (hrs < 24) return `Há ${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `Há ${days} dia${days > 1 ? "s" : ""}`;
+  const weeks = Math.floor(days / 7);
+  return `Há ${weeks} semana${weeks > 1 ? "s" : ""}`;
+}
+
+function getInitials(name?: string | null) {
+  if (!name || !name.trim()) return null;
+  return name.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+}
 
 export function AdminDashboard() {
   const navigate = useNavigate();
   const [atas, setAtas] = useState<Ata[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [atividades, setAtividades] = useState<Atividade[]>([]);
   const [loading, setLoading] = useState(true);
   const [yearFilter, setYearFilter] = useState<"Este ano" | "Ano anterior">("Este ano");
 
@@ -48,10 +63,19 @@ export function AdminDashboard() {
 
   async function fetchData() {
     setLoading(true);
-    const [atasRes, catsRes] = await Promise.all([getAtas(), getCategorias()]);
+    const [atasRes, catsRes, ativRes] = await Promise.all([getAtas(), getCategorias(), getAtividadesRecentes(6)]);
     if (!atasRes.error && atasRes.data) setAtas(atasRes.data);
     if (!catsRes.error && catsRes.data) setCategorias(catsRes.data);
+    if (!ativRes.error && ativRes.data) setAtividades(ativRes.data);
     setLoading(false);
+  }
+
+  async function handleDownloadRecent(ata: Ata) {
+    const file = ata.arquivos?.[ata.arquivos.length - 1];
+    if (!file) return;
+    incrementDownloads(ata.id, ata.downloads_count ?? 0);
+    logAtividade("realizou download de", file.nome);
+    window.open(file.url, "_blank");
   }
 
   const total      = atas.length;
@@ -140,7 +164,7 @@ export function AdminDashboard() {
         <div className="shrink-0">
           <button
             id="btn-nova-ata-banner-dashboard"
-            onClick={() => navigate('/admin/atas')}
+            onClick={() => navigate('/admin/atas/nova')}
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md cursor-pointer hover:shadow-blue-600/10 transform hover:-translate-y-0.1 active:translate-y-0"
           >
             <Plus className="w-4 h-4" />
@@ -306,6 +330,7 @@ export function AdminDashboard() {
               recent.map((r) => {
                 const tipo = (r as any).tipo ?? "";
                 const cs = getTipoStyle(tipo);
+                const hasFile = (r.arquivos?.length ?? 0) > 0;
                 return (
                   <div
                     key={r.id}
@@ -323,13 +348,21 @@ export function AdminDashboard() {
                     <div className="flex items-center gap-3 shrink-0 ml-4">
                       {tipo && (
                         <span
-                          className="text-xs px-2.5 py-1 rounded-full font-medium"
+                          className="text-xs px-2.5 py-1 rounded-full font-medium hidden sm:inline-block"
                           style={{ backgroundColor: cs.bg, color: cs.text }}
                         >
                           {tipo}
                         </span>
                       )}
                       <span className="text-gray-400 text-xs hidden sm:block">{formatDate(r.criado_em)}</span>
+                      <button
+                        onClick={() => handleDownloadRecent(r)}
+                        disabled={!hasFile}
+                        title={hasFile ? "Baixar arquivo" : "Nenhum arquivo anexado"}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <Download size={14} />
+                      </button>
                     </div>
                   </div>
                 );
@@ -344,18 +377,41 @@ export function AdminDashboard() {
             <p className="text-gray-900 font-semibold text-sm">Atividade recente</p>
           </div>
           <div className="px-6 py-5 space-y-5">
-            {activity.map((a, i) => (
-              <div key={i} className="flex gap-3">
-                <div className="mt-0.5 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                  <Clock size={13} className="text-gray-500" />
-                </div>
-                <div>
-                  <p className="text-gray-700 text-xs font-semibold">{a.action}</p>
-                  <p className="text-gray-400 text-xs mt-0.5 leading-snug">{a.doc}</p>
-                  <p className="text-gray-300 text-xs mt-1">{a.time}</p>
-                </div>
-              </div>
-            ))}
+            {atividades.length === 0 ? (
+              <p className="text-gray-400 text-xs text-center py-6">Nenhuma atividade registrada ainda.</p>
+            ) : (
+              atividades.map((a, i) => {
+                const nome = a.profiles?.full_name ?? null;
+                const avatarUrl = a.profiles?.avatar_url ?? null;
+                const initials = getInitials(nome);
+                const color = AVATAR_COLORS[i % AVATAR_COLORS.length];
+                return (
+                  <div key={a.id} className="flex gap-3">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt={nome ?? ""} className="mt-0.5 w-7 h-7 rounded-full object-cover shrink-0 border border-gray-200" />
+                    ) : initials ? (
+                      <div
+                        className="mt-0.5 w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-white text-[10px] font-bold uppercase"
+                        style={{ backgroundColor: color }}
+                      >
+                        {initials}
+                      </div>
+                    ) : (
+                      <div className="mt-0.5 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                        <UserIcon size={13} className="text-gray-400" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-gray-700 text-xs font-semibold leading-snug">
+                        <span>{nome ?? "Usuário"}</span> {a.acao}
+                        {a.documento && <span className="font-normal text-gray-500"> {a.documento}</span>}
+                      </p>
+                      <p className="text-gray-300 text-xs mt-1">{timeAgo(a.criado_em)}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 
