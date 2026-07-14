@@ -25,11 +25,14 @@ export function PerfilPage() {
 
   // Modal alterar senha
   const [modalOpen,          setModalOpen]          = useState(false);
+  const [senhaAtual,         setSenhaAtual]         = useState("");
   const [novaSenha,          setNovaSenha]          = useState("");
   const [confirmarSenha,     setConfirmarSenha]     = useState("");
+  const [showAtual,          setShowAtual]          = useState(false);
   const [showNova,           setShowNova]           = useState(false);
   const [showConfirmar,      setShowConfirmar]      = useState(false);
   const [passwordError,      setPasswordError]      = useState("");
+  const [senhaAtualError,    setSenhaAtualError]    = useState("");
   const [passwordSuccess,    setPasswordSuccess]    = useState(false);
   const [passwordLoading,    setPasswordLoading]    = useState(false);
 
@@ -81,8 +84,13 @@ export function PerfilPage() {
   async function handlePasswordChange(e: React.FormEvent) {
     e.preventDefault();
     setPasswordError("");
+    setSenhaAtualError("");
     setPasswordSuccess(false);
 
+    if (!senhaAtual) {
+      setSenhaAtualError("Informe sua senha atual.");
+      return;
+    }
     if (novaSenha.length < 8) {
       setPasswordError("A nova senha deve ter no mínimo 8 caracteres.");
       return;
@@ -91,14 +99,33 @@ export function PerfilPage() {
       setPasswordError("As senhas não conferem.");
       return;
     }
+    if (!usuario?.email) {
+      setPasswordError("Não foi possível validar sua senha atual.");
+      return;
+    }
 
     setPasswordLoading(true);
+
+    // Não existe "buscar" a senha atual (ela nunca fica em texto puro) —
+    // a forma correta de validar é tentar autenticar com ela.
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: usuario.email,
+      password: senhaAtual,
+    });
+
+    if (authError) {
+      setPasswordLoading(false);
+      setSenhaAtualError("Senha atual incorreta.");
+      return;
+    }
+
     const { error } = await supabase.auth.updateUser({ password: novaSenha });
     setPasswordLoading(false);
 
     if (error) { setPasswordError("Erro ao alterar senha. Tente novamente."); return; }
 
     setPasswordSuccess(true);
+    setSenhaAtual("");
     setNovaSenha("");
     setConfirmarSenha("");
     setTimeout(() => { setModalOpen(false); setPasswordSuccess(false); }, 2000);
@@ -107,7 +134,9 @@ export function PerfilPage() {
   function closeModal() {
     setModalOpen(false);
     setPasswordError("");
+    setSenhaAtualError("");
     setPasswordSuccess(false);
+    setSenhaAtual("");
     setNovaSenha("");
     setConfirmarSenha("");
   }
@@ -411,6 +440,34 @@ export function PerfilPage() {
             )}
 
             <form onSubmit={handlePasswordChange} className="space-y-4">
+
+              {/* Senha Atual */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                  Senha Atual
+                </label>
+                <div className="relative">
+                  <input
+                    type={showAtual ? "text" : "password"}
+                    required
+                    placeholder="Digite sua senha atual"
+                    value={senhaAtual}
+                    onChange={(e) => { setSenhaAtual(e.target.value); if (senhaAtualError) setSenhaAtualError(""); }}
+                    className={`w-full text-xs pl-3.5 pr-10 py-2.5 bg-slate-50 border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-100 font-semibold ${
+                      senhaAtualError ? "border-red-300" : "border-slate-200 focus:border-blue-500"
+                    }`}
+                  />
+                  <button type="button" onClick={() => setShowAtual(!showAtual)}
+                    className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600 cursor-pointer">
+                    {showAtual ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {senhaAtualError && (
+                  <p className="text-red-500 text-xs flex items-center gap-1 pt-0.5">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {senhaAtualError}
+                  </p>
+                )}
+              </div>
 
               {/* Nova Senha */}
               <div className="space-y-1.5">

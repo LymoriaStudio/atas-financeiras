@@ -1,21 +1,17 @@
 import { useEffect, useState } from "react";
+import { useNavigate, useOutletContext } from "react-router";
 import {
   BarChart2, FileText, Gavel, Users, Building2, Calendar, Briefcase,
   Landmark, ClipboardList, Scale, Shield, Archive, BookOpen, DollarSign,
-  TrendingUp, Star, Pencil, Trash2, Plus, Check, Loader2,
+  TrendingUp, Star, Pencil, Trash2, Plus, Loader2,
 } from "lucide-react";
 import {
-  getCategorias, createCategoria, updateCategoria, deleteCategoria,
+  getCategorias, updateCategoria, deleteCategoria,
   type Categoria,
 } from "../../../lib/api/categoriasService";
 import { getAtas, type Ata } from "../../../lib/api/atasService";
 import { logAtividade } from "../../../lib/api/atividadesService";
-
-const ICONS = [
-  "BarChart2","FileText","Gavel","Users","Building2","Calendar",
-  "Briefcase","Landmark","ClipboardList","Scale","Shield","Archive",
-  "BookOpen","DollarSign","TrendingUp","Star",
-];
+import type { Usuario } from "../../../lib/api/usuarioService";
 
 const iconMap: Record<string, React.ReactNode> = {
   BarChart2: <BarChart2 size={22} />, FileText: <FileText size={22} />,
@@ -48,15 +44,14 @@ function formatDate(iso?: string) {
 }
 
 export function AdminCategories() {
+  const navigate = useNavigate();
+  const { usuario } = useOutletContext<{ usuario: Usuario | null }>();
+  const isViewer = usuario?.role === "viewer";
   const [cats, setCats] = useState<Categoria[]>([]);
   const [catsLoading, setCatsLoading] = useState(true);
   const [atas, setAtas] = useState<Ata[]>([]);
   const [atasLoading, setAtasLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  const [form, setForm] = useState<FormState>(emptyForm);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<FormState>(emptyForm);
@@ -87,30 +82,8 @@ export function AdminCategories() {
     });
   });
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name.trim()) return;
-    setSubmitting(true); setErrorMsg(null);
-    const { data, error } = await createCategoria({
-      name: form.name,
-      description: form.description,
-      icon: form.icon,
-      color: form.color,
-      count: 0,
-    });
-    if (!error && data) {
-      setCats((prev) => [data, ...prev]);
-      setForm(emptyForm);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1200);
-      logAtividade("criou uma categoria", data.name);
-    } else {
-      setErrorMsg("Erro ao criar categoria.");
-    }
-    setSubmitting(false);
-  };
-
   const startEdit = (cat: Categoria) => {
+    if (isViewer) return;
     setEditingId(cat.id);
     setEditForm({ name: cat.name, description: cat.description, icon: cat.icon, color: cat.color });
   };
@@ -118,7 +91,7 @@ export function AdminCategories() {
   const cancelEdit = () => { setEditingId(null); setEditForm(emptyForm); };
 
   const saveEdit = async () => {
-    if (!editingId || !editForm.name.trim()) return;
+    if (!editingId || !editForm.name.trim() || isViewer) return;
     const { data, error } = await updateCategoria(editingId, editForm);
     if (!error && data) {
       setCats((prev) => prev.map((c) => (c.id === editingId ? data : c)));
@@ -130,6 +103,7 @@ export function AdminCategories() {
   };
 
   const handleDelete = async (cat: Categoria) => {
+    if (isViewer) return;
     if (!confirm(`Deseja realmente excluir a categoria "${cat.name}"?`)) return;
     const { error } = await deleteCategoria(cat.id);
     if (!error) {
@@ -142,100 +116,32 @@ export function AdminCategories() {
 
   return (
     <div className="p-4 space-y-6">
-      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-        <h1 style={{ color: "#111827", fontSize: "1.5rem", fontWeight: 700 }}>Categorias</h1>
-        <p className="text-gray-400 text-sm mt-1">Defina classificações, cores e ícones para organizar os documentos</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+        <div>
+          <h1 style={{ color: "#111827", fontSize: "1.5rem", fontWeight: 700 }}>Categorias</h1>
+          <p className="text-gray-400 text-sm mt-1">Defina classificações, cores e ícones para organizar os documentos</p>
+        </div>
+        {!isViewer && (
+          <button
+            onClick={() => navigate("/admin/categorias/nova")}
+            className="btn-primary flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold shrink-0"
+          >
+            <Plus size={16} /> Nova Categoria
+          </button>
+        )}
       </div>
 
       {errorMsg && (
         <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{errorMsg}</div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Coluna 1: Cadastrar */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm h-fit space-y-4">
-          <h3 className="text-sm font-bold text-gray-800 border-b border-gray-100 pb-3 flex items-center gap-2">
-            <Plus size={16} className="text-blue-600" /> Cadastrar Categoria
-          </h3>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Nome</label>
-              <input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Ex: Financeiro"
-                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 focus:border-gray-400 focus:bg-white rounded-lg text-sm text-gray-700 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Descrição</label>
-              <textarea
-                rows={3}
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Quais documentos pertencem a esta categoria..."
-                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 focus:border-gray-400 focus:bg-white rounded-lg text-sm text-gray-700 focus:outline-none resize-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Ícone</label>
-              <div className="grid grid-cols-8 gap-1.5">
-                {ICONS.map((ic) => (
-                  <button
-                    key={ic}
-                    type="button"
-                    onClick={() => setForm({ ...form, icon: ic })}
-                    title={ic}
-                    className="h-8 rounded-lg border flex items-center justify-center transition-all"
-                    style={form.icon === ic
-                      ? { borderColor: form.color, backgroundColor: `${form.color}15`, color: form.color }
-                      : { borderColor: "#E5E7EB", color: "#9CA3AF" }}
-                  >
-                    <span style={{ transform: "scale(0.65)", display: "flex" }}>{iconMap[ic]}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Cor de destaque</label>
-              <div className="flex flex-wrap gap-2">
-                {COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setForm({ ...form, color: c })}
-                    title={c}
-                    className="w-7 h-7 rounded-full flex items-center justify-center transition-all"
-                    style={{
-                      backgroundColor: c,
-                      boxShadow: form.color === c ? `0 0 0 2px white, 0 0 0 4px ${c}` : "none",
-                      transform: form.color === c ? "scale(1.1)" : "scale(1)",
-                    }}
-                  >
-                    {form.color === c && <Check size={13} className="text-white" strokeWidth={3} />}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-2.5 rounded-xl text-white text-sm font-bold transition-all disabled:opacity-60 flex items-center justify-center gap-2"
-              style={{ backgroundColor: saved ? "#15803D" : "#111827" }}
-            >
-              {submitting ? <Loader2 size={15} className="animate-spin" /> : saved ? <><Check size={15} /> Criada!</> : "Registrar Categoria"}
-            </button>
-          </form>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+        <div className="p-6 pb-4 border-b border-gray-50">
+          <h4 className="text-base font-bold text-gray-900">Categorias Cadastradas</h4>
+          <p className="text-xs text-gray-400 mt-1">Quantidade de atas vinculadas por categoria</p>
         </div>
 
-        {/* Coluna 2: Lista */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-6 pb-4 border-b border-gray-50">
-            <h4 className="text-base font-bold text-gray-900">Categorias Cadastradas</h4>
-            <p className="text-xs text-gray-400 mt-1">Quantidade de atas vinculadas por categoria</p>
-          </div>
-
-          {loading ? (
+        {loading ? (
             <div className="py-16 flex items-center justify-center gap-2 text-gray-400 text-sm">
               <Loader2 size={16} className="animate-spin" /> Carregando categorias...
             </div>
@@ -307,6 +213,8 @@ export function AdminCategories() {
                               <button onClick={saveEdit} className="px-3 py-1.5 bg-gray-900 hover:opacity-90 text-white text-xs font-semibold rounded-lg">Salvar</button>
                               <button onClick={cancelEdit} className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg">Cancelar</button>
                             </div>
+                          ) : isViewer ? (
+                            <span className="text-gray-300 text-xs">—</span>
                           ) : (
                             <div className="flex items-center justify-end gap-1">
                               <button onClick={() => startEdit(cat)} title="Editar" className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"><Pencil size={14} /></button>
@@ -326,6 +234,6 @@ export function AdminCategories() {
           )}
         </div>
       </div>
-    </div>
-  );
+    );
 }
+

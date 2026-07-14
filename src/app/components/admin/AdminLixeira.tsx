@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { Trash2, RefreshCw, FolderLock, FileText, Loader2 } from "lucide-react";
+import { useOutletContext } from "react-router";
+import { Trash2, RefreshCw, FolderLock, FileText, Loader2, Lock } from "lucide-react";
 import { getAtasLixeira, restoreAta, purgeAta, type Ata } from "../../../lib/api/atasService";
 import { logAtividade } from "../../../lib/api/atividadesService";
+import type { Usuario } from "../../../lib/api/usuarioService";
 
 function formatDate(iso?: string | null) {
   if (!iso) return "-";
@@ -9,6 +11,8 @@ function formatDate(iso?: string | null) {
 }
 
 export function AdminLixeira() {
+  const { usuario } = useOutletContext<{ usuario: Usuario | null }>();
+  const isAdmin = usuario?.role === "admin";
   const [atas, setAtas] = useState<Ata[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -25,6 +29,7 @@ export function AdminLixeira() {
   }
 
   async function handleRestore(ata: Ata) {
+    if (!isAdmin) return;
     setBusyId(ata.id);
     const { error } = await restoreAta(ata.id);
     if (!error) {
@@ -37,6 +42,7 @@ export function AdminLixeira() {
   }
 
   async function handlePurge(ata: Ata) {
+    if (!isAdmin) return;
     if (!confirm(`Atenção: a exclusão de "${ata.titulo}" será definitiva e irreversível. Deseja continuar?`)) return;
     setBusyId(ata.id);
     const { error } = await purgeAta(ata.id);
@@ -93,22 +99,28 @@ export function AdminLixeira() {
                     </td>
                     <td className="py-4 px-6 text-gray-400 whitespace-nowrap">{formatDate(ata.deleted_at)}</td>
                     <td className="py-4 px-6 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => handleRestore(ata)}
-                          disabled={busyId === ata.id}
-                          className="flex items-center gap-1 px-3 py-1.5 border border-blue-100 bg-blue-50/50 text-blue-700 hover:bg-blue-100 rounded-md text-[11px] font-bold transition-all disabled:opacity-50"
-                        >
-                          <RefreshCw size={12} /> Restaurar
-                        </button>
-                        <button
-                          onClick={() => handlePurge(ata)}
-                          disabled={busyId === ata.id}
-                          className="flex items-center gap-1 px-3 py-1.5 border border-red-100 bg-red-50/50 text-red-700 hover:bg-red-100 rounded-md text-[11px] font-bold transition-all disabled:opacity-50"
-                        >
-                          <Trash2 size={12} /> Destruir
-                        </button>
-                      </div>
+                      {isAdmin ? (
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleRestore(ata)}
+                            disabled={busyId === ata.id}
+                            className="flex items-center gap-1 px-3 py-1.5 border border-blue-100 bg-blue-50/50 text-blue-700 hover:bg-blue-100 rounded-md text-[11px] font-bold transition-all disabled:opacity-50"
+                          >
+                            <RefreshCw size={12} /> Restaurar
+                          </button>
+                          <button
+                            onClick={() => handlePurge(ata)}
+                            disabled={busyId === ata.id}
+                            className="flex items-center gap-1 px-3 py-1.5 border border-red-100 bg-red-50/50 text-red-700 hover:bg-red-100 rounded-md text-[11px] font-bold transition-all disabled:opacity-50"
+                          >
+                            <Trash2 size={12} /> Destruir
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-gray-300 text-[11px] font-semibold" title="Somente administradores podem restaurar ou excluir">
+                          <Lock size={12} /> Somente leitura
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

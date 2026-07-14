@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useOutletContext } from "react-router";
 import {
   FileText,
   User,
@@ -12,6 +12,7 @@ import { createAta } from "../../../lib/api/atasService";
 import { uploadAtaFile } from "../../../lib/api/storageService";
 import { getCategorias, type Categoria } from "../../../lib/api/categoriasService";
 import { logAtividade } from "../../../lib/api/atividadesService";
+import type { Usuario } from "../../../lib/api/usuarioService";
 
 const TIPOS = ["Estatuto", "Financeiro", "Atas"];
 const ALLOWED_EXT = ["pdf", "docx", "xlsx"];
@@ -21,6 +22,14 @@ type ArquivoState = { nome: string; url: string; tamanho: number; ext: string };
 
 export function AdminNovaAta() {
   const navigate = useNavigate();
+  const { usuario } = useOutletContext<{ usuario: Usuario | null }>();
+
+  // Viewer não pode criar atas — redireciona de volta
+  useEffect(() => {
+    if (usuario && usuario.role === "viewer") {
+      navigate("/admin/atas");
+    }
+  }, [usuario, navigate]);
 
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriasLoading, setCategoriasLoading] = useState(true);
@@ -158,6 +167,8 @@ export function AdminNovaAta() {
     logAtividade("publicou uma nova ata", titulo);
     navigate("/admin/atas");
   };
+
+  if (usuario?.role === "viewer") return null;
 
   return (
     <div id="nova-ata-view" className="space-y-6">
@@ -391,7 +402,7 @@ export function AdminNovaAta() {
                 type="submit"
                 id="btn-salvar-nova-ata"
                 disabled={submitting}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-md cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
+                className="btn-primary w-full py-2.5 text-xs font-bold shadow-md cursor-pointer flex items-center justify-center gap-2"
               >
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar Documento"}
               </button>

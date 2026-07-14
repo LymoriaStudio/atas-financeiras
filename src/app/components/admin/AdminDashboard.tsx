@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { FileText, TrendingUp, Download, CheckCircle, FolderOpen, Plus, User as UserIcon } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useNavigate, useOutletContext } from "react-router";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie,
@@ -8,6 +8,7 @@ import {
 import { getAtas, incrementDownloads, type Ata } from "../../../lib/api/atasService";
 import { getCategorias, type Categoria } from "../../../lib/api/categoriasService";
 import { getAtividadesRecentes, logAtividade, type Atividade } from "../../../lib/api/atividadesService";
+import type { Usuario } from "../../../lib/api/usuarioService";
 
 function formatDate(iso?: string) {
   if (!iso) return "-";
@@ -53,6 +54,8 @@ function getInitials(name?: string | null) {
 
 export function AdminDashboard() {
   const navigate = useNavigate();
+  const { usuario } = useOutletContext<{ usuario: Usuario | null }>();
+  const isViewer = usuario?.role === "viewer";
   const [atas, setAtas] = useState<Ata[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [atividades, setAtividades] = useState<Atividade[]>([]);
@@ -152,6 +155,7 @@ export function AdminDashboard() {
     },
   ];
 
+ 
   return (
     <div className="p-4 space-y-8 bg-gray-50 min-h-screen">
 
@@ -161,16 +165,18 @@ export function AdminDashboard() {
           <h2 className="text-base font-bold text-slate-900">Painel de Controle de Governança</h2>
           <p className="text-xs text-slate-500">Consulte atas e rascunhos cadastrados, acompanhe fluxos e faça a gestão simplificada de documentos.</p>
         </div>
-        <div className="shrink-0">
-          <button
-            id="btn-nova-ata-banner-dashboard"
-            onClick={() => navigate('/admin/atas/nova')}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md cursor-pointer hover:shadow-blue-600/10 transform hover:-translate-y-0.1 active:translate-y-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Nova Ata</span>
-          </button>
-        </div>
+        {!isViewer && (
+          <div className="shrink-0">
+            <button
+              id="btn-nova-ata-banner-dashboard"
+              onClick={() => navigate('/admin/atas/nova')}
+              className="btn-primary w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-md font-bold shadow-sm hover:shadow-md cursor-pointer hover:shadow-blue-600/10 transform hover:-translate-y-0.1 active:translate-y-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Nova Ata</span>
+            </button>
+          </div>
+        )}
       </div>
       {/* 4 Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">

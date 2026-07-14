@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useOutletContext } from "react-router";
 import * as XLSX from "xlsx-js-style";
 import {
   Plus, Search, ChevronDown, Eye, Pencil, Trash2, X, Upload, Check, Loader2,
@@ -9,6 +9,7 @@ import { getAtas, updateAta, deleteAta, type Ata } from "../../../lib/api/atasSe
 import { uploadAtaFile } from "../../../lib/api/storageService";
 import { getCategorias, type Categoria } from "../../../lib/api/categoriasService";
 import { logAtividade } from "../../../lib/api/atividadesService";
+import type { Usuario } from "../../../lib/api/usuarioService";
 
 const TIPOS = ["Estatuto", "Financeiro", "Atas"];
 
@@ -66,6 +67,8 @@ type SortField = "numero" | "data";
 
 export function AdminAtas() {
   const navigate = useNavigate();
+  const { usuario } = useOutletContext<{ usuario: Usuario | null }>();
+  const isViewer = usuario?.role === "viewer";
   const [atas, setAtas] = useState<Ata[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -230,6 +233,7 @@ export function AdminAtas() {
   }
 
   const openEdit = (ata: Ata) => {
+    if (isViewer) return;
     setForm({
       numero: ata.numero,
       titulo: ata.titulo,
@@ -343,7 +347,7 @@ export function AdminAtas() {
   };
 
   const confirmDelete = async () => {
-    if (!deletingId) return;
+    if (!deletingId || isViewer) return;
     const deletingAta = atas.find((a) => a.id === deletingId);
     const { error } = await deleteAta(deletingId);
     if (!error) {
@@ -384,13 +388,14 @@ export function AdminAtas() {
           >
             <FileCheck size={16} /> <span className="hidden md:inline">Exportar PDF</span>
           </button>
-          <button
-            onClick={() => navigate("/admin/atas/nova")}
-            className="flex items-center gap-1.5 px-4 py-2.5 text-white text-sm font-bold rounded-xl hover:opacity-90 transition-opacity shrink-0"
-            style={{ backgroundColor: "#111827" }}
-          >
-            <Plus size={16} /> Criar Nova Ata
-          </button>
+          {!isViewer && (
+            <button
+              onClick={() => navigate("/admin/atas/nova")}
+              className="btn-primary flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold shrink-0"
+            >
+              <Plus size={16} /> Criar Nova Ata
+            </button>
+          )}
         </div>
       </div>
 
@@ -519,8 +524,12 @@ export function AdminAtas() {
                       <td className="py-4 px-6 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => openView(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors" title="Visualizar"><Eye size={14} /></button>
-                          <button onClick={() => openEdit(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors" title="Editar"><Pencil size={14} /></button>
-                          <button onClick={() => setDeletingId(ata.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors" title="Excluir"><Trash2 size={14} /></button>
+                          {!isViewer && (
+                            <>
+                              <button onClick={() => openEdit(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors" title="Editar"><Pencil size={14} /></button>
+                              <button onClick={() => setDeletingId(ata.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors" title="Excluir"><Trash2 size={14} /></button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -569,8 +578,12 @@ export function AdminAtas() {
                   </div>
                   <div className="flex items-center justify-end gap-1 pt-2 border-t border-gray-50">
                     <button onClick={() => openView(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"><Eye size={15} /></button>
-                    <button onClick={() => openEdit(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"><Pencil size={14} /></button>
-                    <button onClick={() => setDeletingId(ata.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+                    {!isViewer && (
+                      <>
+                        <button onClick={() => openEdit(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"><Pencil size={14} /></button>
+                        <button onClick={() => setDeletingId(ata.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+                      </>
+                    )}
                   </div>
                 </div>
               );
@@ -805,8 +818,8 @@ export function AdminAtas() {
               <button
                 onClick={saveForm}
                 disabled={submitting}
-                className="flex-1 py-2.5 rounded-xl text-white text-sm font-medium flex items-center justify-center gap-2 transition-all disabled:opacity-60"
-                style={{ backgroundColor: saved ? "#15803D" : "#111827" }}
+                className="btn-primary flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-2"
+                style={saved ? { backgroundColor: "#15803D" } : undefined}
               >
                 {submitting ? (
                   <Loader2 size={15} className="animate-spin" />

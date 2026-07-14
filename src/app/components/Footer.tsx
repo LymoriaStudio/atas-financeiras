@@ -1,8 +1,12 @@
 import { Mail, Phone, MapPin } from "lucide-react";
-import vegasLogo from "../../imports/Ativo_1_4x.png";
+import SbsLogo from "../../imports/sbslogo.png";
 import { Link } from "react-router";
 
-export function Footer() {
+interface FooterProps {
+  onCategoryClick?: (category: string) => void;
+}
+
+export function Footer({ onCategoryClick }: FooterProps) {
   const quickLinks = [
     { label: "Início", href: "#home" },
     { label: "Sobre o Projeto", href: "sobre" },
@@ -11,12 +15,14 @@ export function Footer() {
   ];
 
   const categoryLinks = [
-    { label: "Financeiro", href: "#financeiro" },
-    { label: "Administrativo", href: "#administrativo" },
-    { label: "Licitações", href: "#licitacoes" },
-    { label: "Contratos", href: "#contratos" },
-    { label: "Reuniões", href: "#reunioes" },
-    { label: "Outros Documentos", href: "#outros" },
+    { label: "Financeiro" },
+    { label: "Atas" },
+    { label: "Estatuto" },
+    // { label: "Administrativo", href: "#administrativo" },
+    // { label: "Licitações", href: "#licitacoes" },
+    // { label: "Contratos", href: "#contratos" },
+    // { label: "Reuniões", href: "#reunioes" },
+    // { label: "Outros Documentos", href: "#outros" },
   ];
 
   return (
@@ -31,7 +37,7 @@ export function Footer() {
           <div>
             <div className="mb-5">
               <img
-                src={vegasLogo}
+                src={SbsLogo}
                 alt="Logo do Sistema de Atas"
                 className="h-14 w-auto"
               />
@@ -92,12 +98,12 @@ export function Footer() {
             <ul className="space-y-3">
               {categoryLinks.map((category) => (
                 <li key={category.label}>
-                  <a
-                    href={category.href}
-                    className="text-gray-400 hover:text-white transition-colors text-sm"
+                  <button
+                    onClick={() => onCategoryClick?.(category.label)}
+                    className="text-gray-400 hover:text-white transition-colors text-sm bg-transparent border-none cursor-pointer p-0"
                   >
                     {category.label}
-                  </a>
+                  </button>
                 </li>
               ))}
             </ul>

@@ -3,16 +3,29 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import {
   LayoutDashboard, FileText, FolderTree,
   LogOut, Menu, X, ChevronDown, Bell,
-  User, KeyRound, Trash2, ShieldCheck, BarChart3,
+  User, KeyRound, Trash2, ShieldCheck, BarChart3, Eye,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { getUsuarioById, type Usuario } from "../../lib/api/usuarioService";
+import { getAtividadesRecentes, type Atividade } from "../../lib/api/atividadesService";
 import logoSbs from '../../imgs/logosbs.png';
+
+function timeAgo(iso: string) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diffMs / 60000);
+  if (min < 1) return "Agora mesmo";
+  if (min < 60) return `Há ${min} min`;
+  const hrs = Math.floor(min / 60);
+  if (hrs < 24) return `Há ${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `Há ${days} dia${days > 1 ? "s" : ""}`;
+}
 
 interface NavItem {
   label: string;
   path: string;
   icon: React.ReactNode;
+  adminOnly?: boolean;
 }
 
 const SECTIONS: { title: string; items: NavItem[] }[] = [
@@ -33,23 +46,24 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
   {
     title: "Administração",
     items: [
-      { label: "Usuários",   path: "/admin/usuarios",   icon: <User className="w-4 h-4" /> },
+      { label: "Usuários",   path: "/admin/usuarios",   icon: <User className="w-4 h-4" />, adminOnly: true },
       { label: "Permissões", path: "/admin/permissoes", icon: <ShieldCheck className="w-4 h-4" /> },
       { label: "Relatórios", path: "/admin/relatorios", icon: <BarChart3 className="w-4 h-4" /> },
     ],
   },
 ];
 
-const HEADER_INFO: Record<string, { title: string }> = {
-  "/admin":            { title: "Dashboard" },
-  "/admin/atas":       { title: "Atas" },
-  "/admin/atas/nova":  { title: "Nova Ata" },
-  "/admin/categorias": { title: "Categorias" },
-  "/admin/lixeira":    { title: "Lixeira" },
-  "/admin/usuarios":   { title: "Usuários" },
-  "/admin/permissoes": { title: "Permissões" },
-  "/admin/relatorios": { title: "Relatórios" },
-  "/admin/perfil":     { title: "Meu Perfil" },
+const HEADER_INFO: Record<string, { title: string; subtitle: string }> = {
+  "/admin":            { title: "Dashboard",   subtitle: "Bem-vindo de volta!" },
+  "/admin/atas":       { title: "Atas",        subtitle: "Gerencie as atas cadastradas" },
+  "/admin/atas/nova":  { title: "Nova Ata",    subtitle: "Cadastre uma nova ata" },
+  "/admin/categorias": { title: "Categorias",  subtitle: "Organize as categorias de documentos" },
+  "/admin/categorias/nova": { title: "Nova Categoria", subtitle: "Cadastre uma nova categoria" },
+  "/admin/lixeira":    { title: "Lixeira",     subtitle: "Restaure ou exclua atas removidas" },
+  "/admin/usuarios":   { title: "Usuários",    subtitle: "Gerencie os usuários do sistema" },
+  "/admin/permissoes": { title: "Permissões",  subtitle: "Veja as permissões por perfil" },
+  "/admin/relatorios": { title: "Relatórios",  subtitle: "Acompanhe relatórios e métricas" },
+  "/admin/perfil":     { title: "Meu Perfil",  subtitle: "Atualize seus dados pessoais" },
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -58,10 +72,6 @@ const ROLE_LABEL: Record<string, string> = {
   viewer: "Visualizador",
 };
 
-const NOTIFICATIONS = [
-  { id: 1, text: "Nova ata publicada",   time: "Há 5 min" },
-  { id: 2, text: "Categoria atualizada", time: "Há 1h" },
-];
 
 export function AdminPanel() {
   const location = useLocation();
@@ -71,8 +81,16 @@ export function AdminPanel() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen,   setNotifOpen]   = useState(false);
   const [usuario,     setUsuario]     = useState<Usuario | null>(null);
+  const [notificacoes, setNotificacoes] = useState<Atividade[]>([]);
+  const [lidas, setLidas] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem("atividades_lidas") ?? "[]"));
+    } catch {
+      return new Set();
+    }
+  });
 
-  const header = HEADER_INFO[location.pathname] ?? { title: "Admin" };
+  const header = HEADER_INFO[location.pathname] ?? { title: "Admin", subtitle: "Bem-vindo de volta!" };
 
   // ── Carrega usuário logado ────────────────────────────────────────────────
   useEffect(() => {
@@ -85,9 +103,28 @@ export function AdminPanel() {
     load();
   }, []);
 
+  // ── Carrega atividades recentes para o sino de notificações ─────────────
+  useEffect(() => {
+    async function loadNotificacoes() {
+      const { data } = await getAtividadesRecentes(5);
+      if (data) setNotificacoes(data);
+    }
+    loadNotificacoes();
+  }, []);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/login");
+  };
+
+  const toggleLida = (id: string) => {
+    setLidas((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      localStorage.setItem("atividades_lidas", JSON.stringify([...next]));
+      return next;
+    });
   };
 
   const closeAll = () => { setProfileOpen(false); setNotifOpen(false); };
@@ -101,7 +138,7 @@ export function AdminPanel() {
 
       {/* SIDEBAR — desktop */}
       <aside className="hidden lg:flex flex-col w-60 shrink-0 bg-[#1E293B] text-white">
-        <SidebarContent currentPath={location.pathname} onLogout={handleLogout} />
+        <SidebarContent currentPath={location.pathname} onLogout={handleLogout} role={usuario?.role} />
       </aside>
 
       {/* SIDEBAR — mobile overlay */}
@@ -112,7 +149,7 @@ export function AdminPanel() {
             <button className="absolute top-4 right-4 text-slate-400 hover:text-white" onClick={() => setSidebarOpen(false)}>
               <X className="w-5 h-5" />
             </button>
-            <SidebarContent currentPath={location.pathname} onLogout={handleLogout} onNavigate={() => setSidebarOpen(false)} />
+            <SidebarContent currentPath={location.pathname} onLogout={handleLogout} onNavigate={() => setSidebarOpen(false)} role={usuario?.role} />
           </aside>
         </div>
       )}
@@ -130,7 +167,7 @@ export function AdminPanel() {
             </button>
             <div>
               <p className="text-base font-bold text-slate-900 leading-tight">{header.title}</p>
-              <p className="text-xs text-blue-500 font-medium leading-tight">Bem-vindo de volta!</p>
+              <p className="text-xs text-blue-500 font-medium leading-tight">{header.subtitle}</p>
             </div>
           </div>
 
@@ -144,9 +181,9 @@ export function AdminPanel() {
                 className="relative w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
               >
                 <Bell className="w-[18px] h-[18px]" />
-                {NOTIFICATIONS.length > 0 && (
+                {notificacoes.filter((n) => !lidas.has(n.id)).length > 0 && (
                   <span className="absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
-                    {NOTIFICATIONS.length}
+                    {notificacoes.filter((n) => !lidas.has(n.id)).length}
                   </span>
                 )}
               </button>
@@ -158,12 +195,38 @@ export function AdminPanel() {
                     <div className="px-4 py-3 border-b border-slate-100">
                       <p className="text-sm font-bold text-slate-800">Notificações</p>
                     </div>
-                    {NOTIFICATIONS.map((n) => (
-                      <div key={n.id} className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                        <p className="text-xs font-semibold text-slate-700">{n.text}</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">{n.time}</p>
-                      </div>
-                    ))}
+                    {notificacoes.length === 0 ? (
+                      <p className="px-4 py-6 text-center text-xs text-slate-400">Nenhuma atividade recente.</p>
+                    ) : (
+                      notificacoes.map((n) => {
+                        const isLida = lidas.has(n.id);
+                        return (
+                          <div
+                            key={n.id}
+                            className={`flex items-start gap-2 px-4 py-3 border-b border-slate-50 last:border-0 transition-colors ${
+                              isLida ? "bg-slate-100" : "hover:bg-slate-50"
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs font-semibold ${isLida ? "text-slate-400" : "text-slate-700"}`}>
+                                {n.profiles?.full_name ?? "Usuário"} {n.acao}
+                                {n.documento && <span className="font-normal"> {n.documento}</span>}
+                              </p>
+                              <p className="text-[11px] text-slate-400 mt-0.5">{timeAgo(n.criado_em)}</p>
+                            </div>
+                            <button
+                              onClick={() => toggleLida(n.id)}
+                              title={isLida ? "Marcar como não visualizada" : "Marcar como visualizada"}
+                              className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                                isLida ? "text-blue-500 hover:bg-slate-200" : "text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                              }`}
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </>
               )}
@@ -243,7 +306,7 @@ export function AdminPanel() {
         {/* CONTEÚDO */}
         <main className="flex-1 overflow-auto p-6 lg:p-8">
           <div className="max-full mx-auto">
-            <Outlet />
+            <Outlet context={{ usuario }} />
           </div>
         </main>
       </div>
@@ -252,8 +315,8 @@ export function AdminPanel() {
 }
 
 function SidebarContent({
-  currentPath, onLogout, onNavigate,
-}: { currentPath: string; onLogout: () => void; onNavigate?: () => void }) {
+  currentPath, onLogout, onNavigate, role,
+}: { currentPath: string; onLogout: () => void; onNavigate?: () => void; role?: string }) {
   return (
     <>
       <div className="p-6 border-b border-slate-700/50 flex-shrink-0">
@@ -261,13 +324,16 @@ function SidebarContent({
       </div>
 
       <nav className="flex-1 p-4 flex flex-col gap-6 overflow-y-auto">
-        {SECTIONS.map((section) => (
+        {SECTIONS.map((section) => {
+          const items = section.items.filter((item) => !item.adminOnly || role === "admin");
+          if (items.length === 0) return null;
+          return (
           <div key={section.title}>
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-3">
               {section.title}
             </p>
             <ul className="space-y-1">
-              {section.items.map((item) => {
+              {items.map((item) => {
                 const active = currentPath === item.path;
                 return (
                   <li key={item.path}>
@@ -286,7 +352,8 @@ function SidebarContent({
               })}
             </ul>
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       <div className="p-4 border-t border-slate-700/50 flex-shrink-0">

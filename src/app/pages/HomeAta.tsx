@@ -5,7 +5,6 @@ import { Features } from "../components/Features";
 import { SearchAndAtas } from "../components/SearchAndAtas";
 import { Categories } from "../components/Categories";
 import { Footer } from "../components/Footer";
-import { AllAtas } from "../components/AllAtas";
 import { CategoryPage } from "../components/CategoryPage";
 import { AdminLogin } from "./AdminLogin";
 import { AdminPanel } from "./AdminPanel";
@@ -13,7 +12,7 @@ import { useNavigate } from "react-router";
 import { useEffect } from "react";
 import { scrollIntent } from "../../utils/scrollIntent";
 
-type Page = "home" | "all-atas" | "category" | "admin-login" | "admin";
+type Page = "home" | "category" | "admin-login" | "admin";
 
 export default function App() {
   const [page, setPage] = useState<Page>("home");
@@ -50,10 +49,6 @@ export default function App() {
     return <AdminPanel onLogout={() => setPage("home")} />;
   }
 
-  if (page === "all-atas") {
-    return <AllAtas onBack={() => setPage("home")} />;
-  }
-
   if (page === "category") {
     return <CategoryPage category={selectedCategory} onBack={() => setPage("home")} />;
   }
@@ -63,9 +58,9 @@ export default function App() {
       <Navbar onAdminClick={() => navigate("/login")} />
       <Hero />
       <Features />
-      <SearchAndAtas onVerTodas={() => setPage("all-atas")} />
+      <SearchAndAtas onVerTodas={() => navigate("/atas")} />
       <Categories onCategoryClick={(cat) => { setSelectedCategory(cat); setPage("category"); }} />
-      <Footer />
+      <Footer onCategoryClick={(cat) => { setSelectedCategory(cat); setPage("category"); }} />
     </div>
   );
 }

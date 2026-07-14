@@ -1,0 +1,21 @@
+/* Botões primários (criação/confirmação) do painel admin.
+   Mude --btn-radius e a cor aqui para refletir em todos os botões que usam .btn-primary. */
+:root {
+  --btn-radius: 0.50rem;
+}
+
+@layer components {
+  .btn-primary {
+    background-color: #2563eb; /* blue-600 */
+    color: #fff;
+    border-radius: var(--btn-radius);
+    transition: background-color 150ms ease;
+  }
+  .btn-primary:hover {
+    background-color: #1d4ed8; /* blue-700 */
+  }
+  .btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
