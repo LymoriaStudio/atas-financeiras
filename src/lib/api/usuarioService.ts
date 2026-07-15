@@ -32,6 +32,13 @@ export async function getUsuarioById(id: string) {
   return { data: data as Usuario | null, error };
 }
 
+// Busca o perfil do usuário atualmente logado
+export async function getUsuarioAtual() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: null };
+  return getUsuarioById(user.id);
+}
+
 export async function createUsuario(
   payload: Omit<Usuario, "id" | "created_at" | "updated_at"> & { password?: string }
 ) {

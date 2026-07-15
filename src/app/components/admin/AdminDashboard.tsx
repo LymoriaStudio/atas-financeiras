@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
-import { FileText, TrendingUp, Download, CheckCircle, FolderOpen, Plus, User as UserIcon } from "lucide-react";
+import { useState } from "react";
+import { FileText, TrendingUp, Download, CheckCircle, FolderOpen, Plus, User as UserIcon, RefreshCw } from "lucide-react";
 import { useNavigate, useOutletContext } from "react-router";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie,
 } from "recharts";
-import { getAtas, incrementDownloads, type Ata } from "../../../lib/api/atasService";
+import { getAtas, type Ata } from "../../../lib/api/atasService";
 import { getCategorias, type Categoria } from "../../../lib/api/categoriasService";
 import { getAtividadesRecentes, logAtividade, type Atividade } from "../../../lib/api/atividadesService";
 import type { Usuario } from "../../../lib/api/usuarioService";
+import { useCachedResource } from "../../../lib/useCachedResource";
+import { LoadingSpinner } from "../LoadingSpinner";
 
 function formatDate(iso?: string) {
   if (!iso) return "-";
@@ -22,6 +24,12 @@ function getTipoStyle(tipo: string): { bg: string; text: string } {
     Estatuto:   { bg: "#FDF4FF", text: "#7E22CE" },
   };
   return map[tipo] ?? { bg: "#F3F4F6", text: "#374151" };
+}
+
+function toArray(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string" && raw.length) return [raw];
+  return [];
 }
 
 function getCatColorHex(color: string): string {
@@ -56,58 +64,60 @@ export function AdminDashboard() {
   const navigate = useNavigate();
   const { usuario } = useOutletContext<{ usuario: Usuario | null }>();
   const isViewer = usuario?.role === "viewer";
-  const [atas, setAtas] = useState<Ata[]>([]);
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [atividades, setAtividades] = useState<Atividade[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [yearFilter, setYearFilter] = useState<"Este ano" | "Ano anterior">("Este ano");
+  const { data: atasData, loading: atasLoading, refetch: refetchAtas } = useCachedResource<Ata[]>("atas", getAtas);
+  const { data: categoriasData, loading: catsLoading, refetch: refetchCategorias } = useCachedResource<Categoria[]>("categorias", getCategorias);
+  const { data: atividadesData, loading: ativLoading, refetch: refetchAtividades } = useCachedResource<Atividade[]>("atividades-6", () => getAtividadesRecentes(6));
+  const atas = atasData ?? [];
+  const categorias = categoriasData ?? [];
+  const atividades = atividadesData ?? [];
+  const loading = atasLoading || catsLoading;
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedYear, setSelectedYear] = useState<"todos" | "2026" | "2025">("todos");
 
-  useEffect(() => { fetchData(); }, []);
-
-  async function fetchData() {
-    setLoading(true);
-    const [atasRes, catsRes, ativRes] = await Promise.all([getAtas(), getCategorias(), getAtividadesRecentes(6)]);
-    if (!atasRes.error && atasRes.data) setAtas(atasRes.data);
-    if (!catsRes.error && catsRes.data) setCategorias(catsRes.data);
-    if (!ativRes.error && ativRes.data) setAtividades(ativRes.data);
-    setLoading(false);
+  async function handleRefresh() {
+    setRefreshing(true);
+    await Promise.all([refetchAtas(), refetchCategorias(), refetchAtividades()]);
+    setRefreshing(false);
   }
 
   async function handleDownloadRecent(ata: Ata) {
     const file = ata.arquivos?.[ata.arquivos.length - 1];
     if (!file) return;
-    incrementDownloads(ata.id, ata.downloads_count ?? 0);
+    // Contagem de downloads é só do site público — no painel só registra o log de atividade
     logAtividade("realizou download de", file.nome);
     window.open(file.url, "_blank");
   }
 
-  const total      = atas.length;
-  const publicadas = atas.filter((a) => a.status === "Publicado").length;
-  const downloads  = atas.reduce((acc, a) => acc + (a.downloads_count ?? 0), 0);
-  const totalCats  = categorias.length;
+  // ── Filtro global de ano — afeta cards e gráficos ────────────────────────
+  const filteredAtas = selectedYear === "todos"
+    ? atas
+    : atas.filter((a) => a.criado_em && new Date(a.criado_em).getFullYear() === Number(selectedYear));
+
+  const total      = filteredAtas.length;
+  const publicadas = filteredAtas.filter((a) => a.status === "Publicado").length;
+  const downloads  = filteredAtas.reduce((acc, a) => acc + (a.downloads_count ?? 0), 0);
+  const totalCats  = selectedYear === "todos"
+    ? categorias.length
+    : new Set(filteredAtas.flatMap((a) => toArray((a as any).categoria_id))).size;
 
   const recent = [...atas]
     .sort((a, b) => new Date(b.criado_em ?? 0).getTime() - new Date(a.criado_em ?? 0).getTime())
     .slice(0, 5);
 
   // ── Gráfico de barras: atas por mês ──────────────────────────────────────
-  const currentYear = new Date().getFullYear();
-  const filterYear  = yearFilter === "Este ano" ? currentYear : currentYear - 1;
-
   const monthlyData = MONTHS.map((month, i) => ({
     month,
-    publicadas: atas.filter((a) => {
+    publicadas: filteredAtas.filter((a) => {
       if (!a.criado_em) return false;
-      const d = new Date(a.criado_em);
-      return d.getFullYear() === filterYear && d.getMonth() === i;
+      return new Date(a.criado_em).getMonth() === i;
     }).length,
   }));
 
   // ── Gráfico de rosca: atas por categoria ─────────────────────────────────
-  const totalAtasCount = atas.length;
+  const totalAtasCount = filteredAtas.length;
 
   const categoryCounts = categorias.map((cat) => {
-    const count = atas.filter((a) => Array.isArray((a as any).categoria_id) ? (a as any).categoria_id.includes(cat.id) : (a as any).categoria_id === cat.id).length;
+    const count = filteredAtas.filter((a) => Array.isArray((a as any).categoria_id) ? (a as any).categoria_id.includes(cat.id) : (a as any).categoria_id === cat.id).length;
     return {
       name:       (cat as any).name,
       value:      count,
@@ -162,21 +172,45 @@ export function AdminDashboard() {
       {/* Header */}
          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm text-left animate-fade-in">
         <div className="space-y-0.5">
-          <h2 className="text-base font-bold text-slate-900">Painel de Controle de Governança</h2>
-          <p className="text-xs text-slate-500">Consulte atas e rascunhos cadastrados, acompanhe fluxos e faça a gestão simplificada de documentos.</p>
+          <h2 className="text-base font-bold text-slate-900">Painel de Controle</h2>
+          <p className="text-xs text-slate-500">Visão geral das atas e documentos.</p>
         </div>
-        {!isViewer && (
-          <div className="shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-500 shrink-0">
+            Ano:
+          </label>
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(e.target.value as typeof selectedYear)}
+            title="Filtrar por ano"
+            className="px-3.5 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold bg-white hover:bg-gray-50 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-gray-200"
+          >
+            <option value="todos">Todos</option>
+            <option value="2026">2026</option>
+            <option value="2025">2025</option>
+          </select>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            title="Atualizar dados"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-all cursor-pointer disabled:opacity-60"
+          >
+            <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+            <span>Atualizar</span>
+          </button>
+          {!isViewer && (
             <button
               id="btn-nova-ata-banner-dashboard"
               onClick={() => navigate('/admin/atas/nova')}
-              className="btn-primary w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-md font-bold shadow-sm hover:shadow-md cursor-pointer hover:shadow-blue-600/10 transform hover:-translate-y-0.1 active:translate-y-0"
+              className="btn-primary w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-bold shadow-sm hover:shadow-md cursor-pointer hover:shadow-blue-600/10 transform hover:-translate-y-0.1 active:translate-y-0"
             >
               <Plus className="w-4 h-4" />
               <span>Nova Ata</span>
             </button>
+          )}
           </div>
-        )}
+        </div>
       </div>
       {/* 4 Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
@@ -196,7 +230,7 @@ export function AdminDashboard() {
             <div>
               <p className="text-[12px] text-gray-400 font-medium">{card.label}</p>
               <p className="text-4xl font-bold text-gray-900 mb-3">
-                {loading ? "—" : card.value}
+                {loading ? <LoadingSpinner block={false} label="" size={22} /> : card.value}
               </p>
               <p className="text-xs font-medium flex items-center gap-1" style={{ color: card.subColor }}>
                 <TrendingUp size={12} />
@@ -215,16 +249,8 @@ export function AdminDashboard() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h4 className="text-base font-bold text-slate-900">Atas publicadas por mês</h4>
-              <p className="text-xs text-slate-400 mt-0.5">Ano em curso</p>
+              <p className="text-xs text-slate-400 mt-0.5">{selectedYear === "todos" ? "Todos os anos" : selectedYear}</p>
             </div>
-            <select
-              value={yearFilter}
-              onChange={(e) => setYearFilter(e.target.value as any)}
-              className="text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="Este ano">Este ano</option>
-              <option value="Ano anterior">Ano anterior</option>
-            </select>
           </div>
 
           <div className="h-64 mt-2">
@@ -329,7 +355,7 @@ export function AdminDashboard() {
           </div>
           <div>
             {loading ? (
-              <div className="px-6 py-10 text-center text-gray-400 text-sm">Carregando...</div>
+              <LoadingSpinner label="Carregando documentos..." className="py-10" />
             ) : recent.length === 0 ? (
               <div className="px-6 py-10 text-center text-gray-400 text-sm">Nenhuma ata cadastrada ainda.</div>
             ) : (
@@ -383,7 +409,9 @@ export function AdminDashboard() {
             <p className="text-gray-900 font-semibold text-sm">Atividade recente</p>
           </div>
           <div className="px-6 py-5 space-y-5">
-            {atividades.length === 0 ? (
+            {ativLoading ? (
+              <LoadingSpinner label="Carregando atividades..." className="py-6" />
+            ) : atividades.length === 0 ? (
               <p className="text-gray-400 text-xs text-center py-6">Nenhuma atividade registrada ainda.</p>
             ) : (
               atividades.map((a, i) => {

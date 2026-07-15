@@ -10,6 +10,7 @@
     color: #fff;
     border-radius: var(--btn-radius);
     transition: background-color 150ms ease;
+    cursor: pointer;
   }
   .btn-primary:hover {
     background-color: #1d4ed8; /* blue-700 */

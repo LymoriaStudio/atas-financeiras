@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 import * as XLSX from "xlsx-js-style";
 import {
@@ -10,6 +10,9 @@ import { uploadAtaFile } from "../../../lib/api/storageService";
 import { getCategorias, type Categoria } from "../../../lib/api/categoriasService";
 import { logAtividade } from "../../../lib/api/atividadesService";
 import type { Usuario } from "../../../lib/api/usuarioService";
+import { useCachedResource } from "../../../lib/useCachedResource";
+import { cacheInvalidate } from "../../../lib/apiCache";
+import { LoadingSpinner } from "../LoadingSpinner";
 
 const TIPOS = ["Estatuto", "Financeiro", "Atas"];
 
@@ -69,13 +72,12 @@ export function AdminAtas() {
   const navigate = useNavigate();
   const { usuario } = useOutletContext<{ usuario: Usuario | null }>();
   const isViewer = usuario?.role === "viewer";
-  const [atas, setAtas] = useState<Ata[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: atasData, loading, setData: setAtas } = useCachedResource<Ata[]>("atas", getAtas);
+  const { data: categoriasData, loading: categoriasLoading } = useCachedResource<Categoria[]>("categorias", getCategorias);
+  const atas = atasData ?? [];
+  const categorias = categoriasData ?? [];
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [categoriasLoading, setCategoriasLoading] = useState(true);
 
   const [query, setQuery] = useState("");
   const [filterCat, setFilterCat] = useState("Todas");
@@ -96,32 +98,6 @@ export function AdminAtas() {
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const [participanteInput, setParticipanteInput] = useState("");
-
-  useEffect(() => {
-    fetchAtas();
-    fetchCategorias();
-  }, []);
-
-  async function fetchAtas() {
-    setLoading(true);
-    setErrorMsg(null);
-    const { data, error } = await getAtas();
-    if (error) {
-      setErrorMsg("Não foi possível carregar as atas. Tente novamente.");
-    } else {
-      setAtas(data ?? []);
-    }
-    setLoading(false);
-  }
-
-  async function fetchCategorias() {
-    setCategoriasLoading(true);
-    const { data, error } = await getCategorias();
-    if (!error && data) {
-      setCategorias(data);
-    }
-    setCategoriasLoading(false);
-  }
 
   const categoriaMap = Object.fromEntries(categorias.map((c) => [c.id, c]));
 
@@ -332,7 +308,7 @@ export function AdminAtas() {
     if (editingId) {
       const { data, error } = await updateAta(editingId, payload);
       if (!error && data) {
-        setAtas((prev) => prev.map((a) => (a.id === editingId ? data : a)));
+        setAtas((prev) => (prev ?? []).map((a) => (a.id === editingId ? data : a)));
         logAtividade("editou uma ata", data.titulo);
       } else {
         setErrorMsg("Erro ao salvar alterações. Tente novamente.");
@@ -351,7 +327,8 @@ export function AdminAtas() {
     const deletingAta = atas.find((a) => a.id === deletingId);
     const { error } = await deleteAta(deletingId);
     if (!error) {
-      setAtas((prev) => prev.filter((a) => a.id !== deletingId));
+      setAtas((prev) => (prev ?? []).filter((a) => a.id !== deletingId));
+      cacheInvalidate("atas-lixeira");
       logAtividade("moveu uma ata para a lixeira", deletingAta?.titulo);
     } else {
       setErrorMsg("Erro ao mover o documento para a lixeira.");
@@ -465,9 +442,7 @@ export function AdminAtas() {
       )}
 
       {loading ? (
-        <div className="py-16 flex items-center justify-center gap-2 text-gray-400 text-sm bg-white rounded-2xl border border-gray-100 shadow-sm">
-          <Loader2 size={16} className="animate-spin" /> Carregando atas...
-        </div>
+        <LoadingSpinner label="Carregando atas..." className="bg-white rounded-2xl border border-gray-100 shadow-sm" />
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
           {/* Desktop table */}
@@ -727,10 +702,7 @@ export function AdminAtas() {
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Categoria</label>
                 {categoriasLoading ? (
-                  <div className="flex items-center gap-2 text-gray-400 text-xs py-2">
-                    <Loader2 size={13} className="animate-spin" />
-                    Carregando categorias...
-                  </div>
+                  <LoadingSpinner block={false} label="Carregando categorias..." size={13} className="text-xs py-2" />
                 ) : (
                   <div className="relative">
                     <select

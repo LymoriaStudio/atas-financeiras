@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { supabase } from "../../lib/supabase";
 import { uploadProfilePic } from "../../lib/api/storageService";
 import {
-  getUsuarioById,
+  getUsuarioAtual,
   updateUsuario,
   type Usuario,
 } from "../../lib/api/usuarioService";
@@ -11,17 +11,19 @@ import {
   User, Mail, Briefcase, Building, Shield, Calendar, Clock,
   Key, Camera, X, Check, ShieldCheck, Lock, Eye, EyeOff, AlertCircle,
 } from "lucide-react";
+import { useCachedResource } from "../../lib/useCachedResource";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 
 export function PerfilPage() {
   const navigate = useNavigate();
 
-  const [usuario, setUsuario]         = useState<Usuario | null>(null);
-  const [loading, setLoading]         = useState(true);
+  const { data: usuario, loading, setData: setUsuario } = useCachedResource<Usuario>("usuario-perfil", getUsuarioAtual);
   const [nome, setNome]               = useState("");
   const [avatarUrl, setAvatarUrl]     = useState("");
   const [isSaved, setIsSaved]         = useState(false);
   const [saveError, setSaveError]     = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasInitialized = useRef(false);
 
   // Modal alterar senha
   const [modalOpen,          setModalOpen]          = useState(false);
@@ -36,23 +38,15 @@ export function PerfilPage() {
   const [passwordSuccess,    setPasswordSuccess]    = useState(false);
   const [passwordLoading,    setPasswordLoading]    = useState(false);
 
-  // ── Carrega usuário logado ────────────────────────────────────────────────
+  // ── Redireciona se não houver sessão, e inicializa o formulário uma vez ──
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { navigate("/login"); return; }
-
-      const { data } = await getUsuarioById(user.id);
-      if (data) {
-        setUsuario(data);
-        setNome(data.full_name ?? "");
-        setAvatarUrl(data.avatar_url ?? "");
-      }
-      setLoading(false);
+    if (!loading && !usuario) { navigate("/login"); return; }
+    if (usuario && !hasInitialized.current) {
+      hasInitialized.current = true;
+      setNome(usuario.full_name ?? "");
+      setAvatarUrl(usuario.avatar_url ?? "");
     }
-    load();
-  }, [navigate]);
+  }, [usuario, loading, navigate]);
 
   // ── Salvar nome ───────────────────────────────────────────────────────────
   async function handleSave(e: React.FormEvent) {
@@ -60,8 +54,9 @@ export function PerfilPage() {
     if (!usuario || !nome.trim()) return;
     setSaveError("");
 
-    const { error } = await updateUsuario(usuario.id, { full_name: nome });
+    const { data, error } = await updateUsuario(usuario.id, { full_name: nome });
     if (error) { setSaveError("Erro ao salvar. Tente novamente."); return; }
+    if (data) setUsuario(data);
 
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3000);
@@ -77,7 +72,8 @@ export function PerfilPage() {
     if (error || !url) return;
 
     setAvatarUrl(url);
-    await updateUsuario(usuario.id, { avatar_url: url });
+    const { data } = await updateUsuario(usuario.id, { avatar_url: url });
+    if (data) setUsuario(data);
   }
 
   // ── Alterar senha ─────────────────────────────────────────────────────────
@@ -159,11 +155,7 @@ export function PerfilPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
-        Carregando perfil…
-      </div>
-    );
+    return <LoadingSpinner label="Carregando perfil…" className="h-64" />;
   }
 
   if (!usuario) return null;

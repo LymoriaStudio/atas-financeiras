@@ -8,11 +8,14 @@ import {
   ArrowLeft,
   Loader2,
 } from "lucide-react";
-import { createAta } from "../../../lib/api/atasService";
+import { createAta, type Ata } from "../../../lib/api/atasService";
 import { uploadAtaFile } from "../../../lib/api/storageService";
 import { getCategorias, type Categoria } from "../../../lib/api/categoriasService";
 import { logAtividade } from "../../../lib/api/atividadesService";
 import type { Usuario } from "../../../lib/api/usuarioService";
+import { useCachedResource } from "../../../lib/useCachedResource";
+import { cacheGet, cacheSet } from "../../../lib/apiCache";
+import { LoadingSpinner } from "../LoadingSpinner";
 
 const TIPOS = ["Estatuto", "Financeiro", "Atas"];
 const ALLOWED_EXT = ["pdf", "docx", "xlsx"];
@@ -31,8 +34,8 @@ export function AdminNovaAta() {
     }
   }, [usuario, navigate]);
 
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [categoriasLoading, setCategoriasLoading] = useState(true);
+  const { data: categoriasData, loading: categoriasLoading } = useCachedResource<Categoria[]>("categorias", getCategorias);
+  const categorias = categoriasData ?? [];
 
   const [numero, setNumero] = useState("ATA - ");
   const [titulo, setTitulo] = useState("");
@@ -49,18 +52,9 @@ export function AdminNovaAta() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCategorias();
-  }, []);
-
-  async function fetchCategorias() {
-    setCategoriasLoading(true);
-    const { data, error } = await getCategorias();
-    if (!error && data) {
-      setCategorias(data);
-      if (data.length > 0) setCategoriaId((prev) => prev || data[0].id);
-    }
-    setCategoriasLoading(false);
-  }
+    if (categorias.length > 0) setCategoriaId((prev) => prev || categorias[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categorias]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -142,7 +136,7 @@ export function AdminNovaAta() {
 
     setSubmitting(true);
 
-    const { error } = await createAta({
+    const { data: novaAta, error } = await createAta({
       numero,
       titulo,
       tipo: TIPOS[0],
@@ -158,11 +152,15 @@ export function AdminNovaAta() {
       status,
     });
 
-    if (error) {
+    if (error || !novaAta) {
       setErrorMsg("Erro ao criar ata. Tente novamente.");
       setSubmitting(false);
       return;
     }
+
+    // Atualiza o cache compartilhado de "atas" pra outras páginas verem a nova ata sem refetch
+    const cachedAtas = cacheGet<Ata[]>("atas") ?? [];
+    cacheSet("atas", [novaAta, ...cachedAtas]);
 
     logAtividade("publicou uma nova ata", titulo);
     navigate("/admin/atas");
@@ -226,10 +224,7 @@ export function AdminNovaAta() {
                   Categoria da Ata *
                 </label>
                 {categoriasLoading ? (
-                  <div className="flex items-center gap-2 text-gray-400 text-xs py-2.5">
-                    <Loader2 size={13} className="animate-spin" />
-                    Carregando categorias...
-                  </div>
+                  <LoadingSpinner block={false} label="Carregando categorias..." size={13} className="text-xs py-2.5" />
                 ) : (
                   <select
                     id="form-categoria-ata"

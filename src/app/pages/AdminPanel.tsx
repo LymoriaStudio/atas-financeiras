@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import {
   LayoutDashboard, FileText, FolderTree,
-  LogOut, Menu, X, ChevronDown, Bell,
+  LogOut, Menu, X, ChevronDown, ChevronRight, Bell,
   User, KeyRound, Trash2, ShieldCheck, BarChart3, Eye,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
-import { getUsuarioById, type Usuario } from "../../lib/api/usuarioService";
-import { getAtividadesRecentes, type Atividade } from "../../lib/api/atividadesService";
-import logoSbs from '../../imgs/logosbs.png';
+import { getUsuarioAtual, type Usuario } from "../../lib/api/usuarioService";
+import { getAtividadesRecentes, getNotificacoesVisualizadas, toggleNotificacaoVisualizada, type Atividade } from "../../lib/api/atividadesService";
+import { useCachedResource } from "../../lib/useCachedResource";
+import logoSbs from '../../imports/sbslogo.png';
 
 function timeAgo(iso: string) {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -53,12 +54,13 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
   },
 ];
 
-const HEADER_INFO: Record<string, { title: string; subtitle: string }> = {
+const HEADER_INFO: Record<string, { title: string | string[]; subtitle: string }> = {
   "/admin":            { title: "Dashboard",   subtitle: "Bem-vindo de volta!" },
   "/admin/atas":       { title: "Atas",        subtitle: "Gerencie as atas cadastradas" },
-  "/admin/atas/nova":  { title: "Nova Ata",    subtitle: "Cadastre uma nova ata" },
+  "/admin/atas/nova":  { title: ["Atas", "Nova Ata"], subtitle: "Cadastre uma nova ata" },
   "/admin/categorias": { title: "Categorias",  subtitle: "Organize as categorias de documentos" },
-  "/admin/categorias/nova": { title: "Nova Categoria", subtitle: "Cadastre uma nova categoria" },
+  "/admin/categorias/nova": { title: ["Categorias", "Nova Categoria"], subtitle: "Cadastre uma nova categoria" },
+  "/admin/categorias/vitrine": { title: ["Categorias", "Vitrine"], subtitle: "Defina a ordem de exibição no site" },
   "/admin/lixeira":    { title: "Lixeira",     subtitle: "Restaure ou exclua atas removidas" },
   "/admin/usuarios":   { title: "Usuários",    subtitle: "Gerencie os usuários do sistema" },
   "/admin/permissoes": { title: "Permissões",  subtitle: "Veja as permissões por perfil" },
@@ -80,36 +82,20 @@ export function AdminPanel() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen,   setNotifOpen]   = useState(false);
-  const [usuario,     setUsuario]     = useState<Usuario | null>(null);
-  const [notificacoes, setNotificacoes] = useState<Atividade[]>([]);
-  const [lidas, setLidas] = useState<Set<string>>(() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem("atividades_lidas") ?? "[]"));
-    } catch {
-      return new Set();
-    }
-  });
+  const { data: usuario } = useCachedResource<Usuario>("usuario-perfil", getUsuarioAtual);
+  const { data: notificacoesData } = useCachedResource<Atividade[]>("atividades-6", () => getAtividadesRecentes(6));
+  const notificacoes = notificacoesData ?? [];
+  const [lidas, setLidas] = useState<Set<string>>(new Set());
 
   const header = HEADER_INFO[location.pathname] ?? { title: "Admin", subtitle: "Bem-vindo de volta!" };
 
-  // ── Carrega usuário logado ────────────────────────────────────────────────
+  // ── Carrega estado de visualização das notificações (por usuário) ──────
   useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await getUsuarioById(user.id);
-      if (data) setUsuario(data);
+    async function loadVisualizadas() {
+      const { data } = await getNotificacoesVisualizadas();
+      if (data) setLidas(data);
     }
-    load();
-  }, []);
-
-  // ── Carrega atividades recentes para o sino de notificações ─────────────
-  useEffect(() => {
-    async function loadNotificacoes() {
-      const { data } = await getAtividadesRecentes(5);
-      if (data) setNotificacoes(data);
-    }
-    loadNotificacoes();
+    loadVisualizadas();
   }, []);
 
   const handleLogout = async () => {
@@ -117,14 +103,24 @@ export function AdminPanel() {
     navigate("/login");
   };
 
-  const toggleLida = (id: string) => {
+  const toggleLida = async (id: string) => {
+    const proximoEstado = !lidas.has(id);
     setLidas((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      localStorage.setItem("atividades_lidas", JSON.stringify([...next]));
+      if (proximoEstado) next.add(id);
+      else next.delete(id);
       return next;
     });
+    const { error } = await toggleNotificacaoVisualizada(id, proximoEstado);
+    if (error) {
+      // reverte em caso de falha ao gravar
+      setLidas((prev) => {
+        const next = new Set(prev);
+        if (proximoEstado) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    }
   };
 
   const closeAll = () => { setProfileOpen(false); setNotifOpen(false); };
@@ -166,7 +162,20 @@ export function AdminPanel() {
               <Menu className="w-5 h-5" />
             </button>
             <div>
-              <p className="text-base font-bold text-slate-900 leading-tight">{header.title}</p>
+              {Array.isArray(header.title) ? (
+                <p className="text-base font-bold leading-tight flex items-center gap-1">
+                  {header.title.map((part, i) => (
+                    <span key={i} className="flex items-center gap-1">
+                      {i > 0 && <ChevronRight size={14} className="text-slate-300 shrink-0" />}
+                      <span className={i === (header.title as string[]).length - 1 ? "text-slate-900" : "text-slate-400"}>
+                        {part}
+                      </span>
+                    </span>
+                  ))}
+                </p>
+              ) : (
+                <p className="text-base font-bold text-slate-900 leading-tight">{header.title}</p>
+              )}
               <p className="text-xs text-blue-500 font-medium leading-tight">{header.subtitle}</p>
             </div>
           </div>
@@ -320,7 +329,7 @@ function SidebarContent({
   return (
     <>
       <div className="p-6 border-b border-slate-700/50 flex-shrink-0">
-        <img src={logoSbs} alt="" className="w-[80%]" />
+        <img src={logoSbs} alt="" className="w-[80%] h-auto object-contain" />
       </div>
 
       <nav className="flex-1 p-4 flex flex-col gap-6 overflow-y-auto">
@@ -334,7 +343,9 @@ function SidebarContent({
             </p>
             <ul className="space-y-1">
               {items.map((item) => {
-                const active = currentPath === item.path;
+                const active = item.path === "/admin"
+                  ? currentPath === "/admin"
+                  : currentPath === item.path || currentPath.startsWith(`${item.path}/`);
                 return (
                   <li key={item.path}>
                     <Link

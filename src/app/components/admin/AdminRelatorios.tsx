@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { FileSpreadsheet, FileCheck, Activity, Loader2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { FileSpreadsheet, FileCheck, Activity } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell,
@@ -7,6 +7,8 @@ import {
 import { getAtas, type Ata } from "../../../lib/api/atasService";
 import { getCategorias, type Categoria } from "../../../lib/api/categoriasService";
 import { getUsuarios, type Usuario } from "../../../lib/api/usuarioService";
+import { useCachedResource } from "../../../lib/useCachedResource";
+import { LoadingSpinner } from "../LoadingSpinner";
 
 const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 const ROLE_LABEL: Record<string, string> = { admin: "Admin", editor: "Editor", viewer: "Viewer" };
@@ -20,22 +22,14 @@ function toArray(raw: unknown): string[] {
 type ReportTab = "periodo" | "categoria" | "downloads" | "usuarios";
 
 export function AdminRelatorios() {
-  const [atas, setAtas] = useState<Ata[]>([]);
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: atasData, loading: atasLoading } = useCachedResource<Ata[]>("atas", getAtas);
+  const { data: categoriasData, loading: catsLoading } = useCachedResource<Categoria[]>("categorias", getCategorias);
+  const { data: usuariosFetched, loading: usuariosLoading } = useCachedResource<Usuario[]>("usuarios", getUsuarios);
+  const atas = atasData ?? [];
+  const categorias = categoriasData ?? [];
+  const usuarios = usuariosFetched ?? [];
+  const loading = atasLoading || catsLoading || usuariosLoading;
   const [tab, setTab] = useState<ReportTab>("periodo");
-
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      const [atasRes, catRes, userRes] = await Promise.all([getAtas(), getCategorias(), getUsuarios()]);
-      setAtas(atasRes.data ?? []);
-      setCategorias(catRes.data ?? []);
-      setUsuarios(userRes.data ?? []);
-      setLoading(false);
-    })();
-  }, []);
 
   const totalDownloads = useMemo(
     () => atas.reduce((acc, a) => acc + ((a as any).downloads_count ?? 0), 0),
@@ -132,9 +126,7 @@ export function AdminRelatorios() {
   if (loading) {
     return (
       <div className="p-4">
-        <div className="py-16 flex items-center justify-center gap-2 text-gray-400 text-sm">
-          <Loader2 size={16} className="animate-spin" /> Carregando relatórios...
-        </div>
+        <LoadingSpinner label="Carregando relatórios..." />
       </div>
     );
   }

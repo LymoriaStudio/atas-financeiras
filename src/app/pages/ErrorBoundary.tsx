@@ -15,12 +15,6 @@ export function ErrorBoundary() {
     ? "O endereço que você tentou acessar não existe ou foi movido."
     : "Ocorreu um erro inesperado. Tente novamente ou volte para o início.";
 
-  const errorDetail = isRouteErrorResponse(error)
-    ? error.statusText || (typeof error.data === "string" ? error.data : null)
-    : error instanceof Error
-    ? error.message
-    : null;
-
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: "#0a0a0a" }}>
       {/* Glow decorativo */}
@@ -45,15 +39,6 @@ export function ErrorBoundary() {
 
         <h1 className="text-white text-3xl md:text-4xl font-bold mb-3">{title}</h1>
         <p className="text-gray-300 text-base leading-relaxed mb-8">{description}</p>
-
-        {errorDetail && (
-          <div
-            className="mb-8 px-4 py-3 rounded-lg text-left text-xs text-gray-400 font-mono break-words"
-            style={{ backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-          >
-            {errorDetail}
-          </div>
-        )}
 
         <div className="flex flex-wrap justify-center gap-4">
           <button

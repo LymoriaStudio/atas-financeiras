@@ -5,9 +5,10 @@ import {
   Landmark, ClipboardList, Scale, Shield, Archive, BookOpen, DollarSign,
   TrendingUp, Star, Check, Loader2, ArrowLeft,
 } from "lucide-react";
-import { createCategoria } from "../../../lib/api/categoriasService";
+import { createCategoria, type Categoria } from "../../../lib/api/categoriasService";
 import { logAtividade } from "../../../lib/api/atividadesService";
 import type { Usuario } from "../../../lib/api/usuarioService";
+import { cacheGet, cacheSet } from "../../../lib/apiCache";
 
 const ICONS = [
   "BarChart2","FileText","Gavel","Users","Building2","Calendar",
@@ -63,6 +64,10 @@ export function AdminNovaCategoria() {
       return;
     }
 
+    // Atualiza o cache compartilhado de "categorias" pra outras páginas verem sem refetch
+    const cachedCats = cacheGet<Categoria[]>("categorias") ?? [];
+    cacheSet("categorias", [data, ...cachedCats]);
+
     logAtividade("criou uma categoria", data.name);
     setSubmitting(false);
     setSaved(true);
@@ -93,7 +98,7 @@ export function AdminNovaCategoria() {
 
       <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Nome</label>
               <input
@@ -105,53 +110,55 @@ export function AdminNovaCategoria() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Descrição</label>
-              <textarea
-                rows={2}
+              <input
+                type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Quais documentos pertencem a esta categoria..."
-                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 focus:border-gray-400 focus:bg-white rounded-lg text-sm text-gray-700 focus:outline-none resize-none"
+                placeholder="Breve descrição da categoria..."
+                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 focus:border-gray-400 focus:bg-white rounded-lg text-sm text-gray-700 focus:outline-none"
               />
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Ícone</label>
-            <div className="grid grid-cols-8 md:grid-cols-[repeat(16,minmax(0,1fr))] gap-1.5">
-              {ICONS.map((ic) => (
-                <button
-                  key={ic}
-                  type="button"
-                  onClick={() => setIcon(ic)}
-                  title={ic}
-                  className="h-8 rounded-lg border flex items-center justify-center transition-all"
-                  style={icon === ic
-                    ? { borderColor: color, backgroundColor: `${color}15`, color: color }
-                    : { borderColor: "#E5E7EB", color: "#9CA3AF" }}
-                >
-                  <span style={{ transform: "scale(0.65)", display: "flex" }}>{iconMap[ic]}</span>
-                </button>
-              ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Ícone</label>
+              <div className="grid grid-cols-8 gap-1.5">
+                {ICONS.map((ic) => (
+                  <button
+                    key={ic}
+                    type="button"
+                    onClick={() => setIcon(ic)}
+                    title={ic}
+                    className="h-8 rounded-lg border flex items-center justify-center transition-all"
+                    style={icon === ic
+                      ? { borderColor: color, backgroundColor: `${color}15`, color: color }
+                      : { borderColor: "#E5E7EB", color: "#9CA3AF" }}
+                  >
+                    <span style={{ transform: "scale(0.65)", display: "flex" }}>{iconMap[ic]}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Cor de destaque</label>
-            <div className="flex flex-wrap gap-2">
-              {COLORS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setColor(c)}
-                  title={c}
-                  className="w-7 h-7 rounded-full flex items-center justify-center transition-all"
-                  style={{
-                    backgroundColor: c,
-                    boxShadow: color === c ? `0 0 0 2px white, 0 0 0 4px ${c}` : "none",
-                    transform: color === c ? "scale(1.1)" : "scale(1)",
-                  }}
-                >
-                  {color === c && <Check size={13} className="text-white" strokeWidth={3} />}
-                </button>
-              ))}
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Cor de destaque</label>
+              <div className="flex flex-wrap gap-2">
+                {COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setColor(c)}
+                    title={c}
+                    className="w-7 h-7 rounded-full flex items-center justify-center transition-all"
+                    style={{
+                      backgroundColor: c,
+                      boxShadow: color === c ? `0 0 0 2px white, 0 0 0 4px ${c}` : "none",
+                      transform: color === c ? "scale(1.1)" : "scale(1)",
+                    }}
+                  >
+                    {color === c && <Check size={13} className="text-white" strokeWidth={3} />}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -172,17 +179,17 @@ export function AdminNovaCategoria() {
             <button
               type="button"
               onClick={() => navigate("/admin/categorias")}
-              className="px-6 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+              className="px-6 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="btn-primary px-6 py-2.5 text-sm font-bold flex items-center justify-center gap-2"
+              className="btn-primary px-6 py-2.5 text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
               style={saved ? { backgroundColor: "#15803D" } : undefined}
             >
-              {submitting ? <Loader2 size={15} className="animate-spin" /> : saved ? <><Check size={15} /> Criada!</> : "Registrar Categoria"}
+              {submitting ? <Loader2 size={15} className="animate-spin" /> : saved ? <><Check size={15} /> Criada!</> : "Criar Categoria"}
             </button>
           </div>
         </form>

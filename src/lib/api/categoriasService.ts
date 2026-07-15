@@ -12,6 +12,8 @@ export interface Categoria {
   color: string;
   created_at?: string;
   updated_at?: string;
+  mostrar_no_site?: boolean;
+  ordem_site?: number | null;
 }
 
 function toSlug(text: string) {
@@ -78,5 +80,20 @@ export async function updateCategoria(id: string, payload: Partial<Omit<Categori
 // DELETE
 export async function deleteCategoria(id: string) {
   const { error } = await supabase.from(TABLE).delete().eq("id", id);
+  return { error };
+}
+
+// Atualiza em lote a visibilidade/ordem das categorias na vitrine do site
+// (update por linha, não upsert — evita violar colunas NOT NULL que não fazem parte deste payload)
+export async function updateOrdemSite(rows: { id: string; mostrar_no_site: boolean; ordem_site: number | null }[]) {
+  const results = await Promise.all(
+    rows.map((r) =>
+      supabase
+        .from(TABLE)
+        .update({ mostrar_no_site: r.mostrar_no_site, ordem_site: r.ordem_site })
+        .eq("id", r.id)
+    )
+  );
+  const error = results.find((r) => r.error)?.error ?? null;
   return { error };
 }

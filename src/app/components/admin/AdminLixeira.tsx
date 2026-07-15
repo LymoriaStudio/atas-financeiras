@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useOutletContext } from "react-router";
-import { Trash2, RefreshCw, FolderLock, FileText, Loader2, Lock } from "lucide-react";
+import { Trash2, RefreshCw, FolderLock, FileText, Lock } from "lucide-react";
 import { getAtasLixeira, restoreAta, purgeAta, type Ata } from "../../../lib/api/atasService";
 import { logAtividade } from "../../../lib/api/atividadesService";
 import type { Usuario } from "../../../lib/api/usuarioService";
+import { useCachedResource } from "../../../lib/useCachedResource";
+import { cacheGet, cacheSet } from "../../../lib/apiCache";
+import { LoadingSpinner } from "../LoadingSpinner";
 
 function formatDate(iso?: string | null) {
   if (!iso) return "-";
@@ -13,27 +16,21 @@ function formatDate(iso?: string | null) {
 export function AdminLixeira() {
   const { usuario } = useOutletContext<{ usuario: Usuario | null }>();
   const isAdmin = usuario?.role === "admin";
-  const [atas, setAtas] = useState<Ata[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: atasData, loading, error: fetchErr, setData: setAtas } = useCachedResource<Ata[]>("atas-lixeira", getAtasLixeira);
+  const atas = atasData ?? [];
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-
-  useEffect(() => { fetchLixeira(); }, []);
-
-  async function fetchLixeira() {
-    setLoading(true); setErrorMsg(null);
-    const { data, error } = await getAtasLixeira();
-    if (error) setErrorMsg("Não foi possível carregar a lixeira. Tente novamente.");
-    else setAtas(data ?? []);
-    setLoading(false);
-  }
 
   async function handleRestore(ata: Ata) {
     if (!isAdmin) return;
     setBusyId(ata.id);
-    const { error } = await restoreAta(ata.id);
+    const { data: restored, error } = await restoreAta(ata.id);
     if (!error) {
-      setAtas((prev) => prev.filter((a) => a.id !== ata.id));
+      setAtas((prev) => (prev ?? []).filter((a) => a.id !== ata.id));
+      if (restored) {
+        const cachedAtas = cacheGet<Ata[]>("atas") ?? [];
+        cacheSet("atas", [restored, ...cachedAtas]);
+      }
       logAtividade("restaurou uma ata da lixeira", ata.titulo);
     } else {
       setErrorMsg("Erro ao restaurar a ata.");
@@ -47,7 +44,7 @@ export function AdminLixeira() {
     setBusyId(ata.id);
     const { error } = await purgeAta(ata.id);
     if (!error) {
-      setAtas((prev) => prev.filter((a) => a.id !== ata.id));
+      setAtas((prev) => (prev ?? []).filter((a) => a.id !== ata.id));
       logAtividade("excluiu permanentemente do lixo", ata.titulo);
     } else {
       setErrorMsg("Erro ao excluir definitivamente.");
@@ -62,8 +59,10 @@ export function AdminLixeira() {
         <p className="text-gray-400 text-sm mt-1">Restaure ou elimine definitivamente atas excluídas</p>
       </div>
 
-      {errorMsg && (
-        <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{errorMsg}</div>
+      {(errorMsg || fetchErr) && (
+        <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">
+          {errorMsg ?? "Não foi possível carregar a lixeira. Tente novamente."}
+        </div>
       )}
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
@@ -73,9 +72,7 @@ export function AdminLixeira() {
         </div>
 
         {loading ? (
-          <div className="py-16 flex items-center justify-center gap-2 text-gray-400 text-sm">
-            <Loader2 size={16} className="animate-spin" /> Carregando lixeira...
-          </div>
+          <LoadingSpinner label="Carregando lixeira..." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[560px]">

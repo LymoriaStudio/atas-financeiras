@@ -8,6 +8,8 @@ import {
   getUsuarios, createUsuario, updateUsuario, deleteUsuario, type Usuario,
 } from "../../../lib/api/usuarioService";
 import { logAtividade } from "../../../lib/api/atividadesService";
+import { useCachedResource } from "../../../lib/useCachedResource";
+import { LoadingSpinner } from "../LoadingSpinner";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -61,8 +63,8 @@ export function AdminUsuarios() {
   const navigate = useNavigate();
   const { usuario: usuarioLogado } = useOutletContext<{ usuario: Usuario | null }>();
 
-  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: usuariosData, loading, error: usuariosError, setData: setUsuarios } = useCachedResource<Usuario[]>("usuarios", getUsuarios);
+  const usuarios = usuariosData ?? [];
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -86,17 +88,6 @@ export function AdminUsuarios() {
       navigate("/admin");
     }
   }, [usuarioLogado, navigate]);
-
-  useEffect(() => { fetchData(); }, []);
-
-  async function fetchData() {
-    setLoading(true);
-    setErrorMsg(null);
-    const { data, error } = await getUsuarios();
-    if (error) setErrorMsg("Não foi possível carregar os usuários. Tente novamente.");
-    else setUsuarios(data ?? []);
-    setLoading(false);
-  }
 
   const filtered = usuarios.filter((u) => {
     const q = query.toLowerCase();
@@ -153,14 +144,14 @@ export function AdminUsuarios() {
     if (modal === "add") {
       const { data, error } = await createUsuario({ ...form, password: senha });
       if (!error && data) {
-        setUsuarios((prev) => [data, ...prev]);
+        setUsuarios((prev) => [data, ...(prev ?? [])]);
         logAtividade("cadastrou um novo usuário", form.full_name);
       }
       else { setErrorMsg("Erro ao criar usuário. Tente novamente."); setSubmitting(false); return; }
     } else if (modal === "edit" && editingId) {
       const { data, error } = await updateUsuario(editingId, form);
       if (!error && data) {
-        setUsuarios((prev) => prev.map((u) => (u.id === editingId ? data : u)));
+        setUsuarios((prev) => (prev ?? []).map((u) => (u.id === editingId ? data : u)));
         logAtividade("editou dados do usuário", data.full_name);
       }
       else { setErrorMsg("Erro ao salvar alterações. Tente novamente."); setSubmitting(false); return; }
@@ -176,7 +167,7 @@ export function AdminUsuarios() {
     const deletingUser = usuarios.find((u) => u.id === deletingId);
     const { error } = await deleteUsuario(deletingId);
     if (!error) {
-      setUsuarios((prev) => prev.filter((u) => u.id !== deletingId));
+      setUsuarios((prev) => (prev ?? []).filter((u) => u.id !== deletingId));
       logAtividade("excluiu um usuário", deletingUser?.full_name);
     } else {
       setErrorMsg("Erro ao excluir usuário.");
@@ -249,18 +240,15 @@ export function AdminUsuarios() {
         ))}
       </div>
 
-      {errorMsg && !modal && (
+      {(errorMsg || usuariosError) && !modal && (
         <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">
-          {errorMsg}
+          {errorMsg ?? "Não foi possível carregar os usuários. Tente novamente."}
         </div>
       )}
 
       {/* Table */}
       {loading ? (
-        <div className="py-16 flex items-center justify-center gap-2 text-gray-400 text-sm bg-white rounded-2xl border border-gray-100 shadow-sm">
-          <Loader2 size={16} className="animate-spin" />
-          Carregando usuários...
-        </div>
+        <LoadingSpinner label="Carregando usuários..." className="bg-white rounded-2xl border border-gray-100 shadow-sm" />
       ) : filtered.length === 0 ? (
         <div className="py-16 text-center text-gray-400 text-sm bg-white rounded-2xl border border-gray-100 shadow-sm">
           Nenhum usuário encontrado.
