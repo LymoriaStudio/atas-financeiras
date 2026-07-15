@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Lock, Mail, ArrowLeft } from "lucide-react";
-import sbsLogo from "../../imports/Ativo_1_4x.png";
+import sbsLogo from "../../imports/sbslogo.png";
 import { supabase } from "../../lib/supabase";
 import { useNavigate } from "react-router";
 import { getAtas } from "../../lib/api/atasService";
