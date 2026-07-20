@@ -13,12 +13,12 @@ export interface Atividade {
 }
 
 // Registra uma ação no log de atividades (best-effort, não bloqueia o fluxo principal)
+// usuario_id fica null quando a ação vem de um visitante anônimo do site público
 export async function logAtividade(acao: string, documento?: string) {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: null };
 
   const { error } = await supabase.from(TABLE).insert({
-    usuario_id: user.id,
+    usuario_id: user?.id ?? null,
     acao,
     documento: documento ?? null,
   });

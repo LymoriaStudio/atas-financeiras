@@ -293,7 +293,7 @@ export function AdminDashboard() {
         {/* GRÁFICO 2: Atas por categoria (rosca) */}
         <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
           <div>
-            <h4 className="text-base font-bold text-slate-900">Atas por categoria</h4>
+            <h4 className="text-base font-bold text-slate-900">Documentos por categoria</h4>
             <p className="text-xs text-slate-400 mt-0.5">Visão consolidada</p>
           </div>
 

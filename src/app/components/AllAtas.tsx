@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Eye, Download, Search, ChevronDown, ChevronLeft, ChevronRight, ArrowLeft, SlidersHorizontal, Calendar, X, Loader2, FileX } from "lucide-react";
 import { getAtas, incrementDownloads, type Ata } from "../../lib/api/atasService";
+import { logAtividade } from "../../lib/api/atividadesService";
 
 
 type QuickPeriod = "todos" | "mes" | "trimestre" | "semestre" | "ano";
@@ -157,6 +158,8 @@ const handleDownload = async (ata: Ata) => {
   if (!error && data) {
     setAtas((prev) => prev.map((a) => (a.id === ata.id ? data : a)));
   }
+  const categoriaLabel = ata.tipo ? ` da categoria ${ata.tipo}` : "";
+  logAtividade(`Você teve 1 Download de documento${categoriaLabel}`, ata.titulo);
 };
 
   const viewingFile = viewingAta ? getLatestFile(viewingAta) : null;

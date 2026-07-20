@@ -97,7 +97,12 @@ export function AdminCategoriasVitrine() {
 
     const { error } = await updateOrdemSite(rows);
     if (error) {
-      setErrorMsg("Erro ao salvar a vitrine. Tente novamente.");
+      const isConflict = (error as any)?.code === "23505" || (error as any)?.code === "409";
+      setErrorMsg(
+        isConflict
+          ? "Conflito ao salvar a ordem (duas categorias tentaram ocupar a mesma posição ao mesmo tempo). Tente novamente."
+          : "Erro ao salvar a vitrine. Tente novamente."
+      );
       setSubmitting(false);
       return;
     }

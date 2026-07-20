@@ -72,6 +72,7 @@ export function AdminAtas() {
   const navigate = useNavigate();
   const { usuario } = useOutletContext<{ usuario: Usuario | null }>();
   const isViewer = usuario?.role === "viewer";
+  const isAdmin = usuario?.role === "admin";
   const { data: atasData, loading, setData: setAtas } = useCachedResource<Ata[]>("atas", getAtas);
   const { data: categoriasData, loading: categoriasLoading } = useCachedResource<Categoria[]>("categorias", getCategorias);
   const atas = atasData ?? [];
@@ -287,7 +288,7 @@ export function AdminAtas() {
         setSubmitting(false);
         return;
       }
-      arquivos = [...existingArquivos, arquivo];
+      arquivos = [arquivo];
     }
 
     const payload = {
@@ -323,7 +324,7 @@ export function AdminAtas() {
   };
 
   const confirmDelete = async () => {
-    if (!deletingId || isViewer) return;
+    if (!deletingId || !isAdmin) return;
     const deletingAta = atas.find((a) => a.id === deletingId);
     const { error } = await deleteAta(deletingId);
     if (!error) {
@@ -500,10 +501,10 @@ export function AdminAtas() {
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => openView(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors" title="Visualizar"><Eye size={14} /></button>
                           {!isViewer && (
-                            <>
-                              <button onClick={() => openEdit(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors" title="Editar"><Pencil size={14} /></button>
-                              <button onClick={() => setDeletingId(ata.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors" title="Excluir"><Trash2 size={14} /></button>
-                            </>
+                            <button onClick={() => openEdit(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors" title="Editar"><Pencil size={14} /></button>
+                          )}
+                          {isAdmin && (
+                            <button onClick={() => setDeletingId(ata.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors" title="Excluir"><Trash2 size={14} /></button>
                           )}
                         </div>
                       </td>
@@ -554,10 +555,10 @@ export function AdminAtas() {
                   <div className="flex items-center justify-end gap-1 pt-2 border-t border-gray-50">
                     <button onClick={() => openView(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"><Eye size={15} /></button>
                     {!isViewer && (
-                      <>
-                        <button onClick={() => openEdit(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"><Pencil size={14} /></button>
-                        <button onClick={() => setDeletingId(ata.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
-                      </>
+                      <button onClick={() => openEdit(ata)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"><Pencil size={14} /></button>
+                    )}
+                    {isAdmin && (
+                      <button onClick={() => setDeletingId(ata.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
                     )}
                   </div>
                 </div>
@@ -686,6 +687,7 @@ export function AdminAtas() {
                     className="flex-1 min-w-[120px] text-sm text-gray-700 focus:outline-none py-1"
                   />
                 </div>
+                <p className="text-gray-400 text-xs mt-1.5">Separe os nomes por vírgula para adicionar vários participantes de uma vez.</p>
               </div>
 
               <div>
@@ -745,40 +747,53 @@ export function AdminAtas() {
               {/* File upload */}
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Arquivo (PDF)</label>
-                <label
-                  htmlFor="ata-file-input"
-                  className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col items-center gap-2 text-center cursor-pointer hover:border-gray-300 transition-colors block"
-                >
-                  <Upload size={20} className="text-gray-400" />
-                  <p className="text-gray-500 text-xs font-medium">
-                    {selectedFile ? selectedFile.name : "Clique para selecionar ou arraste o PDF"}
-                  </p>
-                  <p className="text-gray-300 text-xs">Tamanho máximo: 10 MB</p>
-                  <input
-                    id="ata-file-input"
-                    type="file"
-                    accept="application/pdf"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file && file.size > 10 * 1024 * 1024) {
-                        setUploadError("Arquivo muito grande. Máximo 10 MB.");
-                        return;
-                      }
-                      setUploadError(null);
-                      setSelectedFile(file ?? null);
-                    }}
-                  />
-                </label>
+
+                {existingArquivos.length > 0 && !selectedFile ? (
+                  <div className="relative border-2 border-gray-200 rounded-xl p-5 flex flex-col items-center gap-2 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setExistingArquivos([])}
+                      title="Excluir documento"
+                      className="absolute -top-2.5 -right-2.5 w-6 h-6 rounded-full bg-white border border-red-200 shadow-sm flex items-center justify-center text-red-400 hover:text-red-500 hover:border-red-300 transition-colors cursor-pointer"
+                    >
+                      <X size={13} />
+                    </button>
+                    <FileCheck size={20} className="text-gray-400" />
+                    <p className="text-gray-600 text-xs font-medium break-all">
+                      {existingArquivos[existingArquivos.length - 1].nome}
+                    </p>
+                    <p className="text-gray-300 text-xs">Arquivo atual</p>
+                  </div>
+                ) : (
+                  <label
+                    htmlFor="ata-file-input"
+                    className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col items-center gap-2 text-center cursor-pointer hover:border-gray-300 transition-colors block"
+                  >
+                    <Upload size={20} className="text-gray-400" />
+                    <p className="text-gray-500 text-xs font-medium">
+                      {selectedFile ? selectedFile.name : "Clique para selecionar ou arraste o PDF"}
+                    </p>
+                    <p className="text-gray-300 text-xs">Tamanho máximo: 10 MB</p>
+                    <input
+                      id="ata-file-input"
+                      type="file"
+                      accept="application/pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file && file.size > 10 * 1024 * 1024) {
+                          setUploadError("Arquivo muito grande. Máximo 10 MB.");
+                          return;
+                        }
+                        setUploadError(null);
+                        setSelectedFile(file ?? null);
+                      }}
+                    />
+                  </label>
+                )}
 
                 {uploadError && (
                   <p className="text-red-500 text-xs mt-1.5">{uploadError}</p>
-                )}
-
-                {existingArquivos.length > 0 && !selectedFile && (
-                  <p className="text-gray-400 text-xs mt-1.5">
-                    Arquivo atual: {existingArquivos[existingArquivos.length - 1].nome}
-                  </p>
                 )}
               </div>
             </div>

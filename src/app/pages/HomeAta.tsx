@@ -60,7 +60,7 @@ export default function App() {
       <Features />
       <SearchAndAtas onVerTodas={() => navigate("/atas")} />
       <Categories onCategoryClick={(cat) => { setSelectedCategory(cat); setPage("category"); }} />
-      <Footer onCategoryClick={(cat) => { setSelectedCategory(cat); setPage("category"); }} />
+      <Footer />
     </div>
   );
 }

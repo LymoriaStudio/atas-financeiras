@@ -9,7 +9,7 @@ import {
 } from "../../lib/api/usuarioService";
 import {
   User, Mail, Briefcase, Building, Shield, Calendar, Clock,
-  Key, Camera, X, Check, ShieldCheck, Lock, Eye, EyeOff, AlertCircle,
+  Key, Camera, X, Check, ShieldCheck, Lock, Eye, EyeOff, AlertCircle, Pencil,
 } from "lucide-react";
 import { useCachedResource } from "../../lib/useCachedResource";
 import { LoadingSpinner } from "../components/LoadingSpinner";
@@ -24,6 +24,12 @@ export function PerfilPage() {
   const [saveError, setSaveError]     = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hasInitialized = useRef(false);
+
+  // Campos institucionais (edição habilitada apenas via lápis)
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [email, setEmail]           = useState("");
+  const [jobTitle, setJobTitle]     = useState("");
+  const [department, setDepartment] = useState("");
 
   // Modal alterar senha
   const [modalOpen,          setModalOpen]          = useState(false);
@@ -45,21 +51,39 @@ export function PerfilPage() {
       hasInitialized.current = true;
       setNome(usuario.full_name ?? "");
       setAvatarUrl(usuario.avatar_url ?? "");
+      setEmail(usuario.email ?? "");
+      setJobTitle(usuario.job_title ?? "");
+      setDepartment(usuario.department ?? "");
     }
   }, [usuario, loading, navigate]);
 
-  // ── Salvar nome ───────────────────────────────────────────────────────────
+  // ── Salvar dados cadastrais ──────────────────────────────────────────────
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!usuario || !nome.trim()) return;
     setSaveError("");
 
-    const { data, error } = await updateUsuario(usuario.id, { full_name: nome });
+    const { data, error } = await updateUsuario(usuario.id, {
+      full_name: nome,
+      email,
+      job_title: jobTitle,
+      department,
+    });
     if (error) { setSaveError("Erro ao salvar. Tente novamente."); return; }
     if (data) setUsuario(data);
 
+    setEditingDetails(false);
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3000);
+  }
+
+  function handleCancelDetails() {
+    if (!usuario) return;
+    setEmail(usuario.email ?? "");
+    setJobTitle(usuario.job_title ?? "");
+    setDepartment(usuario.department ?? "");
+    setSaveError("");
+    setEditingDetails(false);
   }
 
   // ── Upload de avatar ──────────────────────────────────────────────────────
@@ -242,7 +266,7 @@ export function PerfilPage() {
           {/* Metadados */}
           <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-6 space-y-4">
             <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Metadados de Loggabilidade
+              Dados de Cadastro
             </h4>
             <div className="space-y-3.5">
               <div className="flex items-center gap-3">
@@ -268,9 +292,23 @@ export function PerfilPage() {
 
           {/* Detalhes Cadastrais */}
           <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-6">
-            <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-3 mb-5">
-              Detalhes Cadastrais
-            </h3>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-5">
+              <h3 className="font-bold text-slate-900 text-sm">
+                Detalhes Cadastrais
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingDetails((v) => !v)}
+                title={editingDetails ? "Bloquear campos institucionais" : "Editar campos institucionais"}
+                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                  editingDetails
+                    ? "bg-blue-50 text-blue-600 border border-blue-200"
+                    : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 border border-transparent"
+                }`}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
             <form onSubmit={handleSave} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -289,50 +327,65 @@ export function PerfilPage() {
                   />
                 </div>
 
-                {/* E-mail — inalterável */}
+                {/* E-mail */}
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Endereço de E-mail (Inalterável)
+                    Endereço de E-mail {!editingDetails && "(Bloqueado)"}
                   </label>
                   <div className="relative">
                     <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3.5" />
                     <input
                       type="email"
-                      disabled
-                      value={usuario.email ?? ""}
-                      className="w-full text-xs pl-9 pr-3 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 font-medium cursor-not-allowed"
+                      disabled={!editingDetails}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className={`w-full text-xs pl-9 pr-3 py-2.5 border rounded-lg font-medium ${
+                        editingDetails
+                          ? "bg-slate-50 border-slate-200 text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-100 focus:border-blue-500"
+                          : "bg-slate-200 border-slate-200 text-slate-500 cursor-not-allowed"
+                      }`}
                     />
                   </div>
                 </div>
 
-                {/* Cargo — inalterável */}
+                {/* Cargo */}
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Cargo Corporativo (Inalterável)
+                    Cargo Corporativo {!editingDetails && "(Bloqueado)"}
                   </label>
                   <div className="relative">
                     <Briefcase className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3.5" />
                     <input
                       type="text"
-                      disabled
-                      value={usuario.job_title ?? "—"}
-                      className="w-full text-xs pl-9 pr-3 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 font-medium cursor-not-allowed"
+                      disabled={!editingDetails}
+                      value={jobTitle}
+                      onChange={(e) => setJobTitle(e.target.value)}
+                      className={`w-full text-xs pl-9 pr-3 py-2.5 border rounded-lg font-medium ${
+                        editingDetails
+                          ? "bg-slate-50 border-slate-200 text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-100 focus:border-blue-500"
+                          : "bg-slate-200 border-slate-200 text-slate-500 cursor-not-allowed"
+                      }`}
                     />
                   </div>
                 </div>
 
-                {/* Departamento — inalterável */}
+                {/* Departamento */}
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Departamento de Alocação (Inalterável)
+                    Departamento de Alocação {!editingDetails && "(Bloqueado)"}
                   </label>
                   <div className="relative">
                     <Building className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3.5" />
                     <input
                       type="text"
-                      disabled
-                      value={usuario.department ?? "—"}
-                      className="w-full text-xs pl-9 pr-3 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 font-medium cursor-not-allowed"
+                      disabled={!editingDetails}
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                      className={`w-full text-xs pl-9 pr-3 py-2.5 border rounded-lg font-medium ${
+                        editingDetails
+                          ? "bg-slate-50 border-slate-200 text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-100 focus:border-blue-500"
+                          : "bg-slate-200 border-slate-200 text-slate-500 cursor-not-allowed"
+                      }`}
                     />
                   </div>
                 </div>
@@ -347,15 +400,28 @@ export function PerfilPage() {
 
               <div className="flex justify-between items-center pt-4 border-t border-slate-100">
                 <span className="text-[10px] text-slate-400 font-medium">
-                  * Detalhes funcionais bloqueados para edição pelo setor de TI e RH.
+                  * Clique no ícone de lápis para habilitar a edição dos campos institucionais.
                 </span>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  {isSaved && <Check className="w-4 h-4" />}
-                  {isSaved ? "DADOS SALVOS!" : "SALVAR ALTERAÇÕES"}
-                </button>
+                <div className="flex items-center gap-2">
+                  {editingDetails && (
+                    <button
+                      type="button"
+                      onClick={handleCancelDetails}
+                      className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-lg transition-all cursor-pointer"
+                    >
+                      CANCELAR
+                    </button>
+                  )}
+                  {editingDetails && (
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {isSaved && <Check className="w-4 h-4" />}
+                      {isSaved ? "DADOS SALVOS!" : "SALVAR ALTERAÇÕES"}
+                    </button>
+                  )}
+                </div>
               </div>
             </form>
           </div>
@@ -364,7 +430,7 @@ export function PerfilPage() {
           <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-6">
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-5">
               <Shield className="w-4 h-4 text-blue-600" />
-              <h3 className="font-bold text-slate-900 text-sm">Escopo de Nível de Permissões</h3>
+              <h3 className="font-bold text-slate-900 text-sm">Nível de Permissões</h3>
             </div>
 
             <p className="text-xs text-slate-500 leading-relaxed mb-4">

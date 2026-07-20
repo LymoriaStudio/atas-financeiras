@@ -85,7 +85,19 @@ export async function deleteCategoria(id: string) {
 
 // Atualiza em lote a visibilidade/ordem das categorias na vitrine do site
 // (update por linha, não upsert — evita violar colunas NOT NULL que não fazem parte deste payload)
+//
+// Feito em duas fases: primeiro zera o ordem_site de todas as linhas envolvidas,
+// depois aplica os valores finais. Sem isso, dois updates concorrentes podem se
+// cruzar (ex: categoria nova assumindo ordem_site=3 antes da antiga liberar esse
+// valor) e violar a constraint de unicidade — gerando um 409 (código 23505)
+// que só "passa" se as requisições pousarem na ordem certa por sorte.
 export async function updateOrdemSite(rows: { id: string; mostrar_no_site: boolean; ordem_site: number | null }[]) {
+  const clearResults = await Promise.all(
+    rows.map((r) => supabase.from(TABLE).update({ ordem_site: null }).eq("id", r.id))
+  );
+  const clearError = clearResults.find((r) => r.error)?.error ?? null;
+  if (clearError) return { error: clearError };
+
   const results = await Promise.all(
     rows.map((r) =>
       supabase

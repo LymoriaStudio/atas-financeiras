@@ -19,12 +19,18 @@ import { AuthCallback } from "./components/AuthCallback";
 import { RedefinirSenha } from "./pages/RedefinirSenha";
 import { PerfilPage } from "./pages/PerfilAdmin";
 import { ErrorBoundary } from "./pages/ErrorBoundary";
+import { TermosDeUso } from "./pages/TermosDeUso";
+import { PoliticaPrivacidade } from "./pages/PoliticaPrivacidade";
+import { Lgpd } from "./pages/Lgpd";
 
 
 export const router = createBrowserRouter([
   { path: "/", Component: HomeAta, errorElement: <ErrorBoundary /> },
   { path: "/atas", Component: AllAtasPage, errorElement: <ErrorBoundary /> },
   { path: "/contato", Component: Contato, errorElement: <ErrorBoundary /> },
+  { path: "/termos-de-uso", Component: TermosDeUso, errorElement: <ErrorBoundary /> },
+  { path: "/politica-de-privacidade", Component: PoliticaPrivacidade, errorElement: <ErrorBoundary /> },
+  { path: "/lgpd", Component: Lgpd, errorElement: <ErrorBoundary /> },
   { path: "/login", Component: AdminLogin, errorElement: <ErrorBoundary /> },
   { path: "/auth/callback", Component: AuthCallback, errorElement: <ErrorBoundary /> },
   { path: "/redefinir-senha", Component: RedefinirSenha, errorElement: <ErrorBoundary /> },

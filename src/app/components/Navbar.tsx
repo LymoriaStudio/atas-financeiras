@@ -22,7 +22,7 @@ export function Navbar({ onAdminClick, isContato }: NavbarProps) {
   }, []);
 
   const links = [
-    { label: "Home",           anchor: "home" },
+    { label: "Início",         anchor: "home" },
     { label: "Sobre",          anchor: "sobre" },
     { label: "Consultar Atas", anchor: "consultar" },
     { label: "Transparência",  anchor: "transparencia" },

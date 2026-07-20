@@ -218,8 +218,14 @@ export function AdminPanel() {
                           >
                             <div className="flex-1 min-w-0">
                               <p className={`text-xs font-semibold ${isLida ? "text-slate-400" : "text-slate-700"}`}>
-                                {n.profiles?.full_name ?? "Usuário"} {n.acao}
-                                {n.documento && <span className="font-normal"> {n.documento}</span>}
+                                {n.profiles ? (
+                                  <>
+                                    {n.profiles.full_name ?? "Usuário"} {n.acao}
+                                    {n.documento && <span className="font-normal"> {n.documento}</span>}
+                                  </>
+                                ) : (
+                                  n.acao
+                                )}
                               </p>
                               <p className="text-[11px] text-slate-400 mt-0.5">{timeAgo(n.criado_em)}</p>
                             </div>

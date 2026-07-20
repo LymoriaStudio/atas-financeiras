@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Search, ChevronDown, Eye, Download, ArrowRight, Loader2, FileX, X } from "lucide-react";
 import { getAtas, incrementDownloads, type Ata } from "../../lib/api/atasService";
+import { logAtividade } from "../../lib/api/atividadesService";
 
 const PREVIEW_COUNT = 5;
 
@@ -90,6 +91,8 @@ export function SearchAndAtas({ onVerTodas }: Props) {
     a.click();
     URL.revokeObjectURL(url);
     await incrementDownloads(ata.id, ata.downloads_count ?? 0);
+    const categoriaLabel = ata.tipo ? ` da categoria ${ata.tipo}` : "";
+    logAtividade(`Você teve 1 Download de documento${categoriaLabel}`, ata.titulo);
   };
 
   return (

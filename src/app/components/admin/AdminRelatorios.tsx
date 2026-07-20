@@ -117,8 +117,8 @@ export function AdminRelatorios() {
   }
 
   const TABS: { key: ReportTab; label: string }[] = [
-    { key: "periodo", label: "Atas por Período" },
-    { key: "categoria", label: "Atas por Categoria" },
+    { key: "periodo", label: "Documentos por Período" },
+    { key: "categoria", label: "Documentos por Categoria" },
     { key: "downloads", label: "Downloads Realizados" },
     { key: "usuarios", label: "Usuários Ativos" },
   ];

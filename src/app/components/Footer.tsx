@@ -2,27 +2,12 @@ import { Mail, Phone, MapPin } from "lucide-react";
 import SbsLogo from "../../imports/sbslogo.png";
 import { Link } from "react-router";
 
-interface FooterProps {
-  onCategoryClick?: (category: string) => void;
-}
-
-export function Footer({ onCategoryClick }: FooterProps) {
+export function Footer() {
   const quickLinks = [
     { label: "Início", href: "#home" },
     { label: "Sobre o Projeto", href: "sobre" },
     { label: "Consultar Atas", href: "consultar" },
     { label: "Contato", href: "/contato" },
-  ];
-
-  const categoryLinks = [
-    { label: "Financeiro" },
-    { label: "Atas" },
-    { label: "Estatuto" },
-    // { label: "Administrativo", href: "#administrativo" },
-    // { label: "Licitações", href: "#licitacoes" },
-    // { label: "Contratos", href: "#contratos" },
-    // { label: "Reuniões", href: "#reunioes" },
-    // { label: "Outros Documentos", href: "#outros" },
   ];
 
   return (
@@ -32,7 +17,7 @@ export function Footer({ onCategoryClick }: FooterProps) {
     >
       <div className="max-w-7xl mx-auto px-6">
         {/* Conteúdo Principal */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mb-12">
           {/* Identidade */}
           <div>
             <div className="mb-5">
@@ -89,26 +74,6 @@ export function Footer({ onCategoryClick }: FooterProps) {
 </ul>
           </div>
 
-          {/* Categorias */}
-          <div>
-            <h4 className="text-white font-semibold mb-4">
-              Categorias
-            </h4>
-
-            <ul className="space-y-3">
-              {categoryLinks.map((category) => (
-                <li key={category.label}>
-                  <button
-                    onClick={() => onCategoryClick?.(category.label)}
-                    className="text-gray-400 hover:text-white transition-colors text-sm bg-transparent border-none cursor-pointer p-0"
-                  >
-                    {category.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-
           {/* Contato */}
           <div>
             <h4 className="text-white font-semibold mb-4">
@@ -161,24 +126,36 @@ export function Footer({ onCategoryClick }: FooterProps) {
         {/* Linha divisória */}
         <div className="border-t border-white/10 pt-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-gray-500 text-xs text-center md:text-left">
-              © 2026 Sistema de Atas Financeiras. Todos os direitos reservados.
+            <p className="text-gray-500 text-xs text-center md:text-left leading-relaxed">
+              Lymoria Atas &bull; Versão 1.0.0
+              <br />
+              Sistema desenvolvido por Lymoria Studio.
             </p>
 
             <div className="flex flex-wrap justify-center gap-6">
-              <a
-                href="#privacidade"
+              <Link
+                to="/politica-de-privacidade"
+                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
                 className="text-gray-500 hover:text-white text-xs transition-colors"
               >
                 Política de Privacidade
-              </a>
+              </Link>
 
-              <a
-                href="#termos"
+              <Link
+                to="/termos-de-uso"
+                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
                 className="text-gray-500 hover:text-white text-xs transition-colors"
               >
                 Termos de Uso
-              </a>
+              </Link>
+
+              <Link
+                to="/lgpd"
+                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                className="text-gray-500 hover:text-white text-xs transition-colors"
+              >
+                LGPD
+              </Link>
 
               <a
                 href="#acessibilidade"
