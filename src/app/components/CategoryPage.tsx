@@ -1,40 +1,10 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Eye, Download, Search, BarChart2, FileText, Gavel, Calendar, X, Loader2 } from "lucide-react";
+import { ArrowLeft, Eye, Download, Search, FileText, Calendar, X, Loader2 } from "lucide-react";
 import { getAtas, type Ata } from "../../lib/api/atasService";
+import { getCategoriaById, type Categoria } from "../../lib/api/categoriasService";
+import { categoriaIconMap } from "../../lib/categoriaIcons";
 
-// Metadados visuais por tipo — ajuste as chaves para bater com os valores do campo `tipo` na API
-const META: Record<string, { icon: React.ReactNode; color: string; bg: string; description: string }> = {
-  Financeiro: {
-    icon: <BarChart2 size={28} />,
-    color: "#15803D",
-    bg: "#F0FDF4",
-    description: "Balanços, demonstrativos financeiros, fluxos de caixa e relatórios de gestão.",
-  },
-  Atas: {
-    icon: <FileText size={28} />,
-    color: "#1D4ED8",
-    bg: "#EFF6FF",
-    description: "Atas de assembleias gerais, reuniões ordinárias e extraordinárias da diretoria.",
-  },
-  Estatuto: {
-    icon: <Gavel size={28} />,
-    color: "#7E22CE",
-    bg: "#FDF4FF",
-    description: "Estatuto social, regimento interno, emendas e normas institucionais.",
-  },
-};
-
-// Fallback para tipos sem metadado definido
-function getMeta(tipo: string) {
-  return (
-    META[tipo] ?? {
-      icon: <FileText size={28} />,
-      color: "#111827",
-      bg: "#F9FAFB",
-      description: `Documentos da categoria ${tipo}.`,
-    }
-  );
-}
+const icons = categoriaIconMap(28);
 
 type QuickPeriod = "todos" | "mes" | "trimestre" | "semestre" | "ano";
 
@@ -65,11 +35,12 @@ function formatDateBR(iso: string) {
 }
 
 interface CategoryPageProps {
-  category: string;
+  category: string; // id da categoria
   onBack: () => void;
 }
 
 export function CategoryPage({ category, onBack }: CategoryPageProps) {
+  const [categoria, setCategoria] = useState<Categoria | null>(null);
   const [atas, setAtas] = useState<Ata[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -80,21 +51,27 @@ export function CategoryPage({ category, onBack }: CategoryPageProps) {
   const [toDate, setToDate] = useState("");
   const [showCustom, setShowCustom] = useState(false);
 
-  const meta = getMeta(category);
+  const color = categoria?.color || "#111827";
+  const bg = `${color}15`;
+  const icon = (categoria?.icon && icons[categoria.icon]) || <FileText size={28} />;
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category]);
 
   async function fetchData() {
     setLoading(true);
     setErrorMsg(null);
-    const atasRes = await getAtas();
-    if (atasRes.error) {
+
+    const [categoriaRes, atasRes] = await Promise.all([getCategoriaById(category), getAtas()]);
+
+    if (categoriaRes.error || atasRes.error) {
       setErrorMsg("Não foi possível carregar os documentos. Tente novamente.");
     } else {
+      setCategoria(categoriaRes.data);
       const publicadas = (atasRes.data ?? []).filter(
-        (a) => a.status === "Publicado" && (a as any).tipo === category
+        (a) => a.status === "Publicado" && a.categoria_id.includes(category)
       );
       setAtas(publicadas);
     }
@@ -147,6 +124,8 @@ export function CategoryPage({ category, onBack }: CategoryPageProps) {
 
   const sorted = [...filtered].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
 
+  const nomeCategoria = categoria?.name ?? "Categoria";
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top bar */}
@@ -161,7 +140,7 @@ export function CategoryPage({ category, onBack }: CategoryPageProps) {
           <span className="text-gray-200">|</span>
           <span className="text-gray-400 text-sm">Categorias</span>
           <span className="text-gray-200">/</span>
-          <span className="text-sm font-medium" style={{ color: meta.color }}>{category}</span>
+          <span className="text-sm font-medium" style={{ color }}>{nomeCategoria}</span>
         </div>
       </div>
 
@@ -171,18 +150,20 @@ export function CategoryPage({ category, onBack }: CategoryPageProps) {
         <div className="flex flex-col items-center text-center mb-10">
           <div
             className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
-            style={{ backgroundColor: meta.bg, color: meta.color }}
+            style={{ backgroundColor: bg, color }}
           >
-            {meta.icon}
+            {icon}
           </div>
           <h1 style={{ color: "#111827", fontSize: "2rem", fontWeight: 700 }} className="mb-2">
-            {category}
+            {nomeCategoria}
           </h1>
-          <p className="text-gray-400 text-sm max-w-md leading-relaxed">{meta.description}</p>
+          <p className="text-gray-400 text-sm max-w-md leading-relaxed">
+            {categoria?.description || `Documentos da categoria ${nomeCategoria}.`}
+          </p>
           {!loading && (
             <span
               className="mt-4 inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold"
-              style={{ backgroundColor: meta.bg, color: meta.color }}
+              style={{ backgroundColor: bg, color }}
             >
               {sorted.length} documento{sorted.length !== 1 ? "s" : ""}
             </span>
@@ -195,7 +176,7 @@ export function CategoryPage({ category, onBack }: CategoryPageProps) {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={`Buscar em ${category}...`}
+            placeholder={`Buscar em ${nomeCategoria}...`}
             className="w-full pl-11 pr-5 py-3 rounded-xl border border-gray-200 bg-white text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-100 shadow-sm"
           />
         </div>
@@ -298,7 +279,7 @@ export function CategoryPage({ category, onBack }: CategoryPageProps) {
                   <div className="flex items-center gap-4 min-w-0">
                     <div
                       className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ backgroundColor: meta.bg, color: meta.color }}
+                      style={{ backgroundColor: bg, color }}
                     >
                       <FileText size={16} />
                     </div>
@@ -319,7 +300,7 @@ export function CategoryPage({ category, onBack }: CategoryPageProps) {
                       <Eye size={15} />
                     </button>
                     <a
-                      href={file?.url}
+                      href={file?.downloadUrl ?? file?.url}
                       download={file?.nome}
                       target="_blank"
                       rel="noreferrer"

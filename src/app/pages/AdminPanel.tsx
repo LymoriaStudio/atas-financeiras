@@ -5,7 +5,7 @@ import {
   LogOut, Menu, X, ChevronDown, ChevronRight, Bell,
   User, KeyRound, Trash2, ShieldCheck, BarChart3, Eye,
 } from "lucide-react";
-import { supabase } from "../../lib/supabase";
+import { logout } from "../../lib/auth";
 import { getUsuarioAtual, type Usuario } from "../../lib/api/usuarioService";
 import { getAtividadesRecentes, getNotificacoesVisualizadas, toggleNotificacaoVisualizada, type Atividade } from "../../lib/api/atividadesService";
 import { useCachedResource } from "../../lib/useCachedResource";
@@ -99,7 +99,7 @@ export function AdminPanel() {
   }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await logout();
     navigate("/login");
   };
 

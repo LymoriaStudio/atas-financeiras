@@ -1,7 +1,6 @@
-import { supabase } from "../supabase";
+import { apiGet, apiPost } from "./httpClient";
 
-const TABLE = "atividades";
-const NOTIF_TABLE = "notificacoes";
+const BASE = "/api/atividades";
 
 export interface Atividade {
   id: string;
@@ -12,64 +11,49 @@ export interface Atividade {
   profiles?: { full_name: string | null; avatar_url: string | null } | null;
 }
 
-// Registra uma ação no log de atividades (best-effort, não bloqueia o fluxo principal)
-// usuario_id fica null quando a ação vem de um visitante anônimo do site público
+interface AtividadeDto {
+  id: string;
+  acao: string;
+  documento?: string | null;
+  createdAt: string;
+  usuarioNome?: string | null;
+  usuarioAvatarUrl?: string | null;
+  viewed: boolean;
+}
+
+function fromDto(dto: AtividadeDto): Atividade {
+  return {
+    id: dto.id,
+    usuario_id: null, // não exposto pelo DTO; nada no front depende do id em si, só do nome/avatar
+    acao: dto.acao,
+    documento: dto.documento ?? null,
+    criado_em: dto.createdAt,
+    profiles: dto.usuarioNome ? { full_name: dto.usuarioNome, avatar_url: dto.usuarioAvatarUrl ?? null } : null,
+  };
+}
+
+// Registra uma ação no log de atividades (best-effort, não bloqueia o fluxo principal).
+// Público de propósito: visitante anônimo do site também loga ações (ex: download).
 export async function logAtividade(acao: string, documento?: string) {
-  const { data: { user } } = await supabase.auth.getUser();
-
-  const { error } = await supabase.from(TABLE).insert({
-    usuario_id: user?.id ?? null,
-    acao,
-    documento: documento ?? null,
-  });
-
+  const { error } = await apiPost(BASE, { acao, documento: documento ?? null });
   return { error };
 }
 
 // GET — últimas atividades, com nome/avatar de quem realizou a ação
 export async function getAtividadesRecentes(limit = 6) {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select("*, profiles(full_name, avatar_url)")
-    .order("criado_em", { ascending: false })
-    .limit(limit);
-
-  return { data: data as Atividade[] | null, error };
+  const { data, error } = await apiGet<AtividadeDto[]>(`${BASE}?limit=${limit}`);
+  return { data: data ? data.map(fromDto) : null, error };
 }
 
 // GET — ids das atividades já marcadas como visualizadas pelo usuário logado
 export async function getNotificacoesVisualizadas() {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { data: new Set<string>(), error: null };
-
-  const { data, error } = await supabase
-    .from(NOTIF_TABLE)
-    .select("atividade_id")
-    .eq("usuario_id", user.id)
-    .eq("viewed", true);
-
+  const { data, error } = await apiGet<AtividadeDto[]>(`${BASE}?limit=50`);
   if (error) return { data: null, error };
-
-  return { data: new Set((data ?? []).map((n) => n.atividade_id as string)), error: null };
+  return { data: new Set((data ?? []).filter((a) => a.viewed).map((a) => a.id)), error: null };
 }
 
 // Marca (ou desmarca) uma atividade como visualizada pelo usuário logado
 export async function toggleNotificacaoVisualizada(atividadeId: string, viewed: boolean) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: null };
-
-  const { error } = await supabase
-    .from(NOTIF_TABLE)
-    .upsert(
-      {
-        atividade_id: atividadeId,
-        usuario_id: user.id,
-        viewed,
-        viewed_at: viewed ? new Date().toISOString() : null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "atividade_id,usuario_id" }
-    );
-
+  const { error } = await apiPost(`${BASE}/${atividadeId}/visualizada?viewed=${viewed}`);
   return { error };
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
-import { supabase } from "../../lib/supabase";
+import { changePassword } from "../../lib/auth";
 import { uploadProfilePic } from "../../lib/api/storageService";
 import {
   getUsuarioAtual,
@@ -119,30 +119,20 @@ export function PerfilPage() {
       setPasswordError("As senhas não conferem.");
       return;
     }
-    if (!usuario?.email) {
-      setPasswordError("Não foi possível validar sua senha atual.");
-      return;
-    }
-
     setPasswordLoading(true);
 
-    // Não existe "buscar" a senha atual (ela nunca fica em texto puro) —
-    // a forma correta de validar é tentar autenticar com ela.
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: usuario.email,
-      password: senhaAtual,
-    });
-
-    if (authError) {
-      setPasswordLoading(false);
-      setSenhaAtualError("Senha atual incorreta.");
-      return;
-    }
-
-    const { error } = await supabase.auth.updateUser({ password: novaSenha });
+    // A própria API valida a senha atual (verifica o hash) antes de trocar.
+    const { error } = await changePassword(novaSenha, senhaAtual);
     setPasswordLoading(false);
 
-    if (error) { setPasswordError("Erro ao alterar senha. Tente novamente."); return; }
+    if (error) {
+      if (error.message?.toLowerCase().includes("atual")) {
+        setSenhaAtualError("Senha atual incorreta.");
+      } else {
+        setPasswordError("Erro ao alterar senha. Tente novamente.");
+      }
+      return;
+    }
 
     setPasswordSuccess(true);
     setSenhaAtual("");

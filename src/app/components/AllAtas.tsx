@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Eye, Download, Search, ChevronDown, ChevronLeft, ChevronRight, ArrowLeft, SlidersHorizontal, Calendar, X, Loader2, FileX } from "lucide-react";
 import { getAtas, incrementDownloads, type Ata } from "../../lib/api/atasService";
+import { getCategorias, type Categoria } from "../../lib/api/categoriasService";
 import { logAtividade } from "../../lib/api/atividadesService";
 
 
@@ -31,16 +32,9 @@ function formatDateBR(iso: string) {
   return `${d}/${m}/${y}`;
 }
 
-function getTipoStyle(tipo: string): { backgroundColor: string; color: string } {
-  const map: Record<string, { backgroundColor: string; color: string }> = {
-    "Atas":           { backgroundColor: "#EFF6FF", color: "#3B82F6" },
-    "Financeiro":     { backgroundColor: "#F0FDF4", color: "#22C55E" },
-    "Estatuto":       { backgroundColor: "#FAF5FF", color: "#A855F7" },
-    "Administrativo": { backgroundColor: "#FFF7ED", color: "#F97316" },
-    "Contratos":      { backgroundColor: "#FFF1F2", color: "#F43F5E" },
-    "Reuniões":       { backgroundColor: "#F0FDFA", color: "#14B8A6" },
-  };
-  return map[tipo] ?? { backgroundColor: "#11182715", color: "#111827" };
+function categoriaStyle(cor?: string): { backgroundColor: string; color: string } {
+  const color = cor || "#111827";
+  return { backgroundColor: `${color}15`, color };
 }
 
 const PER_PAGE = 8;
@@ -51,6 +45,7 @@ interface AllAtasProps {
 
 export function AllAtas({ onBack }: AllAtasProps) {
   const [atas, setAtas] = useState<Ata[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [viewingAta, setViewingAta] = useState<Ata | null>(null);
@@ -71,7 +66,7 @@ export function AllAtas({ onBack }: AllAtasProps) {
   async function fetchData() {
     setLoading(true);
     setErrorMsg(null);
-    const atasRes = await getAtas();
+    const [atasRes, categoriasRes] = await Promise.all([getAtas(), getCategorias()]);
 
     if (atasRes.error) {
       setErrorMsg("Não foi possível carregar as atas. Tente novamente.");
@@ -79,14 +74,17 @@ export function AllAtas({ onBack }: AllAtasProps) {
       const publicadas = (atasRes.data ?? []).filter((a) => a.status === "Publicado");
       setAtas(publicadas);
     }
+    if (!categoriasRes.error && categoriasRes.data) {
+      setCategorias(categoriasRes.data);
+    }
 
     setLoading(false);
   }
 
-  const CATEGORIES = [
-    "Todas",
-    ...Array.from(new Set(atas.map((a) => (a as any).tipo).filter(Boolean))).sort(),
-  ];
+  const categoriaMap = Object.fromEntries(categorias.map((c) => [c.id, c]));
+  const nomeCategoria = (a: Ata) => (a.categoria_id[0] ? categoriaMap[a.categoria_id[0]]?.name : undefined);
+
+  const CATEGORIES = ["Todas", ...categorias.map((c) => c.name).sort()];
 
   const YEARS = ["Todos os anos", ...Array.from(
     new Set(atas.map((a) => a.data?.slice(0, 4)).filter(Boolean))
@@ -113,8 +111,7 @@ export function AllAtas({ onBack }: AllAtasProps) {
     const q = query.toLowerCase();
     const matchQuery = q === "" || a.titulo.toLowerCase().includes(q) || a.numero.toLowerCase().includes(q);
 
-    const tipo = (a as any).tipo ?? "";
-    const matchCat = category === "Todas" || tipo === category;
+    const matchCat = category === "Todas" || nomeCategoria(a) === category;
 
     const matchYear = year === "Todos os anos" || a.data?.slice(0, 4) === year;
 
@@ -158,7 +155,8 @@ const handleDownload = async (ata: Ata) => {
   if (!error && data) {
     setAtas((prev) => prev.map((a) => (a.id === ata.id ? data : a)));
   }
-  const categoriaLabel = ata.tipo ? ` da categoria ${ata.tipo}` : "";
+  const nome = nomeCategoria(ata);
+  const categoriaLabel = nome ? ` da categoria ${nome}` : "";
   logAtividade(`Você teve 1 Download de documento${categoriaLabel}`, ata.titulo);
 };
 
@@ -356,7 +354,8 @@ const handleDownload = async (ata: Ata) => {
             </div>
           ) : (
             paginated.map((ata) => {
-              const tipo = (ata as any).tipo ?? "";
+              const categoriaId = ata.categoria_id[0];
+              const categoriaAta = categoriaId ? categoriaMap[categoriaId] : undefined;
               const file = getLatestFile(ata);
               return (
                 <div key={ata.id} className="border-b border-gray-50 last:border-0">
@@ -369,12 +368,12 @@ const handleDownload = async (ata: Ata) => {
                       <span className="text-gray-600 text-sm">{ata.titulo}</span>
                     </div>
                     <div className="col-span-2 flex flex-wrap gap-1">
-                      {tipo ? (
+                      {categoriaAta ? (
                         <span
                           className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
-                          style={getTipoStyle(tipo)}
+                          style={categoriaStyle(categoriaAta.color)}
                         >
-                          {tipo}
+                          {categoriaAta.name}
                         </span>
                       ) : (
                         <span className="text-gray-300 text-xs">—</span>
@@ -432,12 +431,12 @@ const handleDownload = async (ata: Ata) => {
 
                     <div className="flex items-center justify-between gap-2 mt-2">
                       <div className="flex flex-wrap gap-1">
-                        {tipo ? (
+                        {categoriaAta ? (
                           <span
                             className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
-                            style={getTipoStyle(tipo)}
+                            style={categoriaStyle(categoriaAta.color)}
                           >
-                            {tipo}
+                            {categoriaAta.name}
                           </span>
                         ) : (
                           <span className="text-gray-300 text-xs">—</span>

@@ -8,7 +8,7 @@ import {
   ArrowLeft,
   Loader2,
 } from "lucide-react";
-import { createAta, type Ata } from "../../../lib/api/atasService";
+import { createAta, getAtaById, type Ata } from "../../../lib/api/atasService";
 import { uploadAtaFile } from "../../../lib/api/storageService";
 import { getCategorias, type Categoria } from "../../../lib/api/categoriasService";
 import { logAtividade } from "../../../lib/api/atividadesService";
@@ -17,11 +17,12 @@ import { useCachedResource } from "../../../lib/useCachedResource";
 import { cacheGet, cacheSet } from "../../../lib/apiCache";
 import { LoadingSpinner } from "../LoadingSpinner";
 
-const TIPOS = ["Estatuto", "Financeiro", "Atas"];
 const ALLOWED_EXT = ["pdf", "docx", "xlsx"];
 const MAX_SIZE_MB = 15;
 
-type ArquivoState = { nome: string; url: string; tamanho: number; ext: string };
+// Guarda o File bruto — o upload de verdade só acontece depois que a ata é criada
+// (nosso backend exige um ataId pra vincular o arquivo, diferente do Storage do Supabase).
+type ArquivoState = { file: File; ext: string };
 
 export function AdminNovaAta() {
   const navigate = useNavigate();
@@ -66,9 +67,9 @@ export function AdminNovaAta() {
     }
   };
 
-  const uploadFiles = async (fileList: FileList) => {
-    setIsUploading(true);
+  const uploadFiles = (fileList: FileList) => {
     setUploadError(null);
+    const novos: ArquivoState[] = [];
 
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
@@ -84,19 +85,10 @@ export function AdminNovaAta() {
         continue;
       }
 
-      const { arquivo, error } = await uploadAtaFile(file);
-      if (error || !arquivo) {
-        setUploadError("Erro ao enviar arquivo. Tente novamente.");
-        continue;
-      }
-
-      setArquivos((prev) => [
-        ...prev,
-        { nome: arquivo.nome, url: arquivo.url, tamanho: arquivo.tamanho ?? file.size, ext },
-      ]);
+      novos.push({ file, ext });
     }
 
-    setIsUploading(false);
+    setArquivos((prev) => [...prev, ...novos]);
     setDragActive(false);
   };
 
@@ -139,7 +131,6 @@ export function AdminNovaAta() {
     const { data: novaAta, error } = await createAta({
       numero,
       titulo,
-      tipo: TIPOS[0],
       categoria_id: categoriaId ? [categoriaId] : [],
       descricao: "",
       data: new Date().toISOString().split("T")[0],
@@ -148,7 +139,7 @@ export function AdminNovaAta() {
       presidente,
       secretario: "",
       participantes: [],
-      arquivos: arquivos.map(({ nome, url, tamanho }) => ({ nome, url, tamanho })),
+      arquivos: [],
       status,
     });
 
@@ -158,9 +149,25 @@ export function AdminNovaAta() {
       return;
     }
 
+    // A ata já existe agora — só então dá pra anexar os arquivos selecionados.
+    let ataFinal = novaAta;
+    if (arquivos.length > 0) {
+      setIsUploading(true);
+      for (const { file } of arquivos) {
+        const { error: uploadErr } = await uploadAtaFile(novaAta.id, file);
+        if (uploadErr) setUploadError("Ata criada, mas houve erro ao enviar algum arquivo. Você pode reenviar editando a ata.");
+      }
+      setIsUploading(false);
+
+      // novaAta foi buscada ANTES do upload — precisa recarregar pra pegar os arquivos anexados,
+      // senão o cache local guarda a versão sem arquivo nenhum (e a tela de visualizar fica vazia).
+      const { data: atualizada } = await getAtaById(novaAta.id);
+      if (atualizada) ataFinal = atualizada;
+    }
+
     // Atualiza o cache compartilhado de "atas" pra outras páginas verem a nova ata sem refetch
     const cachedAtas = cacheGet<Ata[]>("atas") ?? [];
-    cacheSet("atas", [novaAta, ...cachedAtas]);
+    cacheSet("atas", [ataFinal, ...cachedAtas]);
 
     logAtividade("publicou uma nova ata", titulo);
     navigate("/admin/atas");
@@ -316,8 +323,8 @@ export function AdminNovaAta() {
                       <span className="text-[10px] font-bold uppercase py-0.5 px-1.5 bg-slate-200 text-slate-700 rounded select-none shrink-0">
                         {file.ext}
                       </span>
-                      <span className="text-gray-700 font-semibold truncate max-w-xs">{file.nome}</span>
-                      <span className="text-gray-400">({formatSize(file.tamanho)})</span>
+                      <span className="text-gray-700 font-semibold truncate max-w-xs">{file.file.name}</span>
+                      <span className="text-gray-400">({formatSize(file.file.size)})</span>
                     </div>
                     <button
                       type="button"

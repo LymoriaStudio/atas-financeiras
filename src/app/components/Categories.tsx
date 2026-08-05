@@ -34,7 +34,7 @@ export function Categories({ onCategoryClick }: CategoriesProps) {
           {categories.map((cat) => (
             <button
               key={cat.id}
-              onClick={() => onCategoryClick?.(cat.name)}
+              onClick={() => onCategoryClick?.(cat.id)}
               className="flex flex-col items-center text-center p-6 rounded-2xl border border-gray-100 hover:border-gray-300 hover:shadow-sm transition-all group bg-white cursor-pointer"
             >
               <div
