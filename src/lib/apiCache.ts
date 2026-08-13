@@ -25,6 +25,14 @@ export function cacheInvalidate(key: string) {
   listeners.get(key)?.forEach((fn) => fn());
 }
 
+export function cacheClearAll() {
+  const keys = Array.from(store.keys());
+  store.clear();
+  for (const key of keys) {
+    listeners.get(key)?.forEach((fn) => fn());
+  }
+}
+
 export function cacheSubscribe(key: string, fn: Listener) {
   if (!listeners.has(key)) listeners.set(key, new Set());
   listeners.get(key)!.add(fn);

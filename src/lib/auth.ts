@@ -1,5 +1,6 @@
 // Substitui o cliente de autenticação do Supabase (src/lib/supabase.js).
 import { apiGet, apiPost, clearTokens, getAccessToken, setTokens } from "./api/httpClient";
+import { cacheClearAll } from "./apiCache";
 
 interface AuthResult {
   accessToken: string;
@@ -17,6 +18,7 @@ export async function login(email: string, password: string) {
   const { data, error } = await apiPost<AuthResult>("/api/auth/login", { email, password });
   if (error || !data) return { data: null, error: error ?? new Error("Falha ao entrar.") };
 
+  cacheClearAll();
   setTokens(data.accessToken, data.refreshToken);
   return { data, error: null };
 }
@@ -24,6 +26,7 @@ export async function login(email: string, password: string) {
 export async function logout() {
   await apiPost("/api/auth/logout");
   clearTokens();
+  cacheClearAll();
 }
 
 export function isAuthenticated(): boolean {

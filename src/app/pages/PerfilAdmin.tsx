@@ -91,13 +91,19 @@ export function PerfilPage() {
     const file = e.target.files?.[0];
     if (!file || !usuario) return;
     e.target.value = "";
+    setSaveError("");
 
-    const { url, error } = await uploadProfilePic(file, usuario.id);
-    if (error || !url) return;
+    // uploadProfilePic já troca o avatar do usuário autenticado no servidor e devolve
+    // o usuário atualizado por inteiro — não precisa (e não deve) chamar updateUsuario
+    // de novo aqui, isso sobrescreveria o valor que acabou de ser salvo corretamente.
+    const { usuario: atualizado, error } = await uploadProfilePic(file, usuario.id);
+    if (error || !atualizado) {
+      setSaveError("Erro ao enviar a imagem. Tente novamente.");
+      return;
+    }
 
-    setAvatarUrl(url);
-    const { data } = await updateUsuario(usuario.id, { avatar_url: url });
-    if (data) setUsuario(data);
+    setAvatarUrl(atualizado.avatar_url ?? "");
+    setUsuario(atualizado);
   }
 
   // ── Alterar senha ─────────────────────────────────────────────────────────

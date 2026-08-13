@@ -588,16 +588,6 @@ export function AdminUsuarios() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">URL do avatar <span className="font-normal text-gray-400">(opcional)</span></label>
-                <input
-                  value={form.avatar_url}
-                  onChange={(e) => setForm({ ...form, avatar_url: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
-                />
-              </div>
-
               {/* Preview */}
               {(form.full_name || form.email) && (
                 <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-50 border border-gray-100">

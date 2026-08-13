@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost, apiPut } from "./httpClient";
+import { apiDelete, apiFileUrl, apiGet, apiPost, apiPut } from "./httpClient";
 import { isAuthenticated } from "../auth";
 
 const BASE = "/api/usuarios";
@@ -16,7 +16,7 @@ export interface Usuario {
   updated_at?: string;
 }
 
-interface UsuarioDto {
+export interface UsuarioDto {
   id: string;
   fullName: string;
   email: string;
@@ -29,12 +29,16 @@ interface UsuarioDto {
   updatedAt?: string | null;
 }
 
-function fromDto(dto: UsuarioDto): Usuario {
+// Exportado pro storageService reaproveitar depois de trocar o avatar
+// (a resposta do upload já vem com o usuário atualizado por inteiro).
+export function fromDto(dto: UsuarioDto): Usuario {
   return {
     id: dto.id,
     full_name: dto.fullName,
     email: dto.email,
-    avatar_url: dto.avatarUrl ?? undefined,
+    // O backend devolve um caminho relativo (/api/usuarios/{id}/avatar) — precisa
+    // da origem da API na frente pra virar uma URL que o <img src> consegue carregar.
+    avatar_url: dto.avatarUrl ? apiFileUrl(dto.avatarUrl) : undefined,
     is_active: dto.isActive,
     role: dto.role,
     job_title: dto.jobTitle ?? undefined,
@@ -71,7 +75,6 @@ export async function createUsuario(
     role: payload.role,
     jobTitle: payload.job_title,
     department: payload.department,
-    avatarUrl: payload.avatar_url,
     isActive: payload.is_active,
   });
   return { data: data ? fromDto(data) : null, error };
@@ -88,7 +91,6 @@ export async function updateUsuario(id: string, payload: Partial<Omit<Usuario, "
     role: merged.role,
     jobTitle: merged.job_title,
     department: merged.department,
-    avatarUrl: merged.avatar_url,
     isActive: merged.is_active,
   });
   return { data: data ? fromDto(data) : null, error };
