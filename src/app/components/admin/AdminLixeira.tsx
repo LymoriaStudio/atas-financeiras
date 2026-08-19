@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useOutletContext } from "react-router";
-import { Trash2, RefreshCw, FolderLock, FileText, Lock } from "lucide-react";
+import { Trash2, RefreshCw, FolderLock, FileText, Lock, ShieldAlert } from "lucide-react";
 import { getAtasLixeira, restoreAta, purgeAta, type Ata } from "../../../lib/api/atasService";
 import { logAtividade } from "../../../lib/api/atividadesService";
 import type { Usuario } from "../../../lib/api/usuarioService";
@@ -16,7 +16,13 @@ function formatDate(iso?: string | null) {
 export function AdminLixeira() {
   const { usuario } = useOutletContext<{ usuario: Usuario | null }>();
   const isAdmin = usuario?.role === "admin";
-  const { data: atasData, loading, error: fetchErr, setData: setAtas } = useCachedResource<Ata[]>("atas-lixeira", getAtasLixeira);
+  // Só admin pode ver a lixeira (API já bloqueia com 403) — evita nem chamar o endpoint
+  // se alguém não-admin cair aqui direto pela URL, sem passar pelo menu (que já esconde
+  // esse item pra quem não é admin).
+  const { data: atasData, loading, error: fetchErr, setData: setAtas } = useCachedResource<Ata[]>(
+    "atas-lixeira",
+    isAdmin ? getAtasLixeira : async () => ({ data: [], error: null })
+  );
   const atas = atasData ?? [];
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -59,6 +65,16 @@ export function AdminLixeira() {
         <p className="text-gray-400 text-sm mt-1">Restaure ou elimine definitivamente atas excluídas</p>
       </div>
 
+      {!isAdmin ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 flex flex-col items-center text-center">
+          <ShieldAlert size={40} className="text-gray-300 mb-3" />
+          <p className="text-sm font-semibold text-gray-700">Acesso restrito</p>
+          <p className="text-xs text-gray-400 mt-1 max-w-sm">
+            A Lixeira é visível somente para administradores. Fale com um admin caso precise restaurar ou excluir algum documento.
+          </p>
+        </div>
+      ) : (
+        <>
       {(errorMsg || fetchErr) && (
         <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">
           {errorMsg ?? "Não foi possível carregar a lixeira. Tente novamente."}
@@ -135,6 +151,8 @@ export function AdminLixeira() {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

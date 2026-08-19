@@ -41,7 +41,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     items: [
       { label: "Atas",       path: "/admin/atas",       icon: <FileText className="w-4 h-4" /> },
       { label: "Categorias", path: "/admin/categorias", icon: <FolderTree className="w-4 h-4" /> },
-      { label: "Lixeira",    path: "/admin/lixeira",    icon: <Trash2 className="w-4 h-4" /> },
+      { label: "Lixeira",    path: "/admin/lixeira",    icon: <Trash2 className="w-4 h-4" />, adminOnly: true },
     ],
   },
   {
