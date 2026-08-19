@@ -20,6 +20,7 @@ export function PerfilPage() {
   const { data: usuario, loading, setData: setUsuario } = useCachedResource<Usuario>("usuario-perfil", getUsuarioAtual);
   const [nome, setNome]               = useState("");
   const [avatarUrl, setAvatarUrl]     = useState("");
+  const [avatarError, setAvatarError] = useState(false);
   const [isSaved, setIsSaved]         = useState(false);
   const [saveError, setSaveError]     = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -51,6 +52,7 @@ export function PerfilPage() {
       hasInitialized.current = true;
       setNome(usuario.full_name ?? "");
       setAvatarUrl(usuario.avatar_url ?? "");
+      setAvatarError(false);
       setEmail(usuario.email ?? "");
       setJobTitle(usuario.job_title ?? "");
       setDepartment(usuario.department ?? "");
@@ -79,6 +81,7 @@ export function PerfilPage() {
 
   function handleCancelDetails() {
     if (!usuario) return;
+    setNome(usuario.full_name ?? "");
     setEmail(usuario.email ?? "");
     setJobTitle(usuario.job_title ?? "");
     setDepartment(usuario.department ?? "");
@@ -103,6 +106,7 @@ export function PerfilPage() {
     }
 
     setAvatarUrl(atualizado.avatar_url ?? "");
+    setAvatarError(false);
     setUsuario(atualizado);
   }
 
@@ -208,10 +212,11 @@ export function PerfilPage() {
 
             {/* Avatar */}
             <div className="relative group mt-4">
-              {avatarUrl ? (
+              {avatarUrl && !avatarError ? (
                 <img
                   src={avatarUrl}
                   alt={usuario.full_name}
+                  onError={() => setAvatarError(true)}
                   className="w-28 h-28 rounded-full object-cover border-4 border-slate-50 shadow-md"
                 />
               ) : (
@@ -309,17 +314,22 @@ export function PerfilPage() {
             <form onSubmit={handleSave} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-                {/* Nome — editável */}
+                {/* Nome — só editável com o lápis habilitado, igual aos outros campos */}
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Nome Completo
+                    Nome Completo {!editingDetails && "(Bloqueado)"}
                   </label>
                   <input
                     type="text"
                     required
+                    disabled={!editingDetails}
                     value={nome}
                     onChange={(e) => setNome(e.target.value)}
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-800"
+                    className={`w-full text-xs px-3.5 py-2.5 border rounded-lg font-semibold ${
+                      editingDetails
+                        ? "bg-slate-50 border-slate-200 text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-100 focus:border-blue-500"
+                        : "bg-slate-200 border-slate-200 text-slate-500 cursor-not-allowed"
+                    }`}
                   />
                 </div>
 

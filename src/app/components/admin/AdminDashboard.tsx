@@ -70,6 +70,9 @@ export function AdminDashboard() {
   const loading = atasLoading || catsLoading;
   const [refreshing, setRefreshing] = useState(false);
   const [selectedYear, setSelectedYear] = useState<"todos" | "2026" | "2025">("todos");
+  // ids de atividade cujo avatar do autor falhou ao carregar — cai pra iniciais nesse caso.
+  const [avatarErrors, setAvatarErrors] = useState<Set<string>>(new Set());
+  const markAvatarError = (id: string) => setAvatarErrors((prev) => new Set(prev).add(id));
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -419,8 +422,8 @@ export function AdminDashboard() {
                 const color = AVATAR_COLORS[i % AVATAR_COLORS.length];
                 return (
                   <div key={a.id} className="flex gap-3">
-                    {avatarUrl ? (
-                      <img src={avatarUrl} alt={nome ?? ""} className="mt-0.5 w-7 h-7 rounded-full object-cover shrink-0 border border-gray-200" />
+                    {avatarUrl && !avatarErrors.has(a.id) ? (
+                      <img src={avatarUrl} alt={nome ?? ""} onError={() => markAvatarError(a.id)} className="mt-0.5 w-7 h-7 rounded-full object-cover shrink-0 border border-gray-200" />
                     ) : initials ? (
                       <div
                         className="mt-0.5 w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-white text-[10px] font-bold uppercase"

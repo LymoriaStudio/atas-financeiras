@@ -65,6 +65,9 @@ export function AdminUsuarios() {
 
   const { data: usuariosData, loading, error: usuariosError, setData: setUsuarios } = useCachedResource<Usuario[]>("usuarios", getUsuarios);
   const usuarios = usuariosData ?? [];
+  // ids cujo avatar falhou ao carregar (imagem quebrada/removida) — mostra iniciais nesse caso.
+  const [avatarErrors, setAvatarErrors] = useState<Set<string>>(new Set());
+  const markAvatarError = (id: string) => setAvatarErrors((prev) => new Set(prev).add(id));
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -273,10 +276,10 @@ export function AdminUsuarios() {
                   <div className="col-span-4 flex items-center gap-3 min-w-0">
                     <div
                       className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                      style={{ backgroundColor: u.avatar_url ? "transparent" : rs.color }}
+                      style={{ backgroundColor: u.avatar_url && !avatarErrors.has(u.id) ? "transparent" : rs.color }}
                     >
-                      {u.avatar_url
-                        ? <img src={u.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover" />
+                      {u.avatar_url && !avatarErrors.has(u.id)
+                        ? <img src={u.avatar_url} alt="" onError={() => markAvatarError(u.id)} className="w-9 h-9 rounded-full object-cover" />
                         : getInitials(u.full_name)
                       }
                     </div>
@@ -342,8 +345,8 @@ export function AdminUsuarios() {
                         className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
                         style={{ backgroundColor: rs.color }}
                       >
-                        {u.avatar_url
-                          ? <img src={u.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                        {u.avatar_url && !avatarErrors.has(u.id)
+                          ? <img src={u.avatar_url} alt="" onError={() => markAvatarError(u.id)} className="w-10 h-10 rounded-full object-cover" />
                           : getInitials(u.full_name)
                         }
                       </div>
@@ -409,8 +412,8 @@ export function AdminUsuarios() {
                 className="w-14 h-14 rounded-full flex items-center justify-center text-white text-lg font-bold shrink-0"
                 style={{ backgroundColor: ROLE_STYLE[viewingUser.role]?.color ?? "#111827" }}
               >
-                {viewingUser.avatar_url
-                  ? <img src={viewingUser.avatar_url} alt="" className="w-14 h-14 rounded-full object-cover" />
+                {viewingUser.avatar_url && !avatarErrors.has(viewingUser.id)
+                  ? <img src={viewingUser.avatar_url} alt="" onError={() => markAvatarError(viewingUser.id)} className="w-14 h-14 rounded-full object-cover" />
                   : getInitials(viewingUser.full_name)
                 }
               </div>
