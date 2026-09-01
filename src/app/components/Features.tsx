@@ -28,7 +28,7 @@ export function Features() {
             Sobre o Portal de Transparência
           </h2>
           <p className="text-gray-500 text-sm leading-relaxed">
-            O Portal de Transparência da SBS Participações tem como objetivo tornar públicas
+            O Portal de Transparência do Grupo SBS S/A tem como objetivo tornar públicas
             as informações financeiras e institucionais da organização. Aqui você encontra
             atas, balanços, estatutos e demais documentos de forma organizada e acessível,
             promovendo a cultura da transparência e o acesso livre à informação.

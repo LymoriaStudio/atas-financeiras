@@ -65,7 +65,7 @@ export function Contato({ onAdminClick, onBack }: Props) {
                   >
                     <Mail size={14} className="text-white" />
                   </div>
-                  <span className="text-gray-600 text-sm">contato@sistemaatas.com.br</span>
+                  <span className="text-gray-600 text-sm">dpo@gruposbssa.com.br</span>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -75,7 +75,7 @@ export function Contato({ onAdminClick, onBack }: Props) {
                   >
                     <MapPin size={14} className="text-white" />
                   </div>
-                  <span className="text-gray-600 text-sm">Americana - SP, Brasil</span>
+                  <span className="text-gray-600 text-sm">Rua Tamoio, nº 526, Anexo Comércio 01 – Vila Santa Catarina, Americana/SP – CEP 13.466-250</span>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -85,7 +85,7 @@ export function Contato({ onAdminClick, onBack }: Props) {
                   >
                     <Phone size={14} className="text-white" />
                   </div>
-                  <span className="text-gray-600 text-sm">(19) 99999-9999</span>
+                  <span className="text-gray-600 text-sm">+55 19 2108-2900</span>
                 </div>
               </div>
             </div>

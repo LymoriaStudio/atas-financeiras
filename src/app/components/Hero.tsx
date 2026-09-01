@@ -95,7 +95,7 @@ export function Hero() {
                   behavior: "smooth",
                 });
               }}
-              className="flex items-center gap-2 text-gray-900 px-7 py-3.5 rounded-lg hover:opacity-90 transition-all duration-300 text-sm font-semibold shadow-lg"
+              className="flex items-center gap-2 text-gray-900 px-7 py-3.5 rounded-lg hover:opacity-90 transition-all duration-300 text-sm font-semibold shadow-lg cursor-pointer"
               style={{ backgroundColor: "#ffffff" }}
             >
               <Search size={16} />
@@ -108,7 +108,7 @@ export function Hero() {
                   behavior: "smooth",
                 });
               }}
-              className="flex items-center gap-2 text-white border border-white/40 px-7 py-3.5 rounded-lg hover:bg-white/10 transition-colors text-sm font-semibold"
+              className="flex items-center gap-2 text-white border border-white/40 px-7 py-3.5 rounded-lg hover:bg-white/10 transition-colors text-sm font-semibold cursor-pointer"
             >
               Saiba mais
               <ChevronRight size={16} />
