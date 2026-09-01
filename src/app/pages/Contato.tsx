@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Mail, MapPin, Phone, ArrowRight } from "lucide-react";
 import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
+import { useNavigate } from "react-router";
 
 interface Props {
   onAdminClick?: () => void;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function Contato({ onAdminClick, onBack }: Props) {
+  const navigate = useNavigate();
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [mensagem, setMensagem] = useState("");
@@ -22,7 +24,7 @@ export function Contato({ onAdminClick, onBack }: Props) {
 
   return (
     <div className="min-h-screen w-full flex flex-col">
-      <Navbar onAdminClick={onAdminClick ?? (() => { })} isContato />
+      <Navbar onAdminClick={onAdminClick ?? (() => navigate("/login"))} isContato />
 
       <main className="flex-1 bg-gray-50 py-16 mt-15">
         <div className="max-w-5xl mx-auto px-6">

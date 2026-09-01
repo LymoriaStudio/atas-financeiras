@@ -19,7 +19,7 @@ export function Categories({ onCategoryClick }: CategoriesProps) {
   if (categories.length === 0) return null;
 
   return (
-    <section id="transparencia" className="py-16 bg-white">
+    <section className="py-16 bg-white">
       <div className="max-w-7xl mx-auto px-6 flex flex-col items-center text-center">
         <div className="mb-10">
           <h2 style={{ color: "#111827", fontSize: "1.75rem", fontWeight: 700 }} className="mb-2">

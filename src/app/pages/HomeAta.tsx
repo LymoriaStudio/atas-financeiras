@@ -59,7 +59,9 @@ export default function App() {
       <Hero />
       <Features />
       <SearchAndAtas onVerTodas={() => navigate("/atas")} />
-      <Categories onCategoryClick={(cat) => { setSelectedCategory(cat); setPage("category"); }} />
+      <div id="transparencia">
+        <Categories onCategoryClick={(cat) => { setSelectedCategory(cat); setPage("category"); }} />
+      </div>
       <Footer />
     </div>
   );
