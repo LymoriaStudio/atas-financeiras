@@ -15,6 +15,7 @@ import { logAtividade } from "../../../lib/api/atividadesService";
 import type { Usuario } from "../../../lib/api/usuarioService";
 import { useCachedResource } from "../../../lib/useCachedResource";
 import { LoadingSpinner } from "../LoadingSpinner";
+import { apiErrorMessage, isConflictFor } from "../../../lib/apiErrors";
 
 const ICONS = [
   "BarChart2","FileText","Gavel","Users","Building2","Calendar",
@@ -121,21 +122,32 @@ export function AdminCategories() {
       setSaved(true);
       setTimeout(cancelEdit, 700);
     } else {
-      setErrorMsg("Erro ao salvar alterações.");
+      setErrorMsg(
+        isConflictFor(error, /(nome|name)/i)
+          ? "Já existe uma categoria com esse nome. Escolha outro nome."
+          : apiErrorMessage(error, "Erro ao salvar alterações.")
+      );
       setSubmitting(false);
     }
   };
 
-  const handleDelete = async (cat: Categoria) => {
+  const [deletingCat, setDeletingCat] = useState<Categoria | null>(null);
+
+  const handleDelete = (cat: Categoria) => {
     if (isViewer) return;
-    if (!confirm(`Deseja realmente excluir a categoria "${cat.name}"?`)) return;
-    const { error } = await deleteCategoria(cat.id);
+    setDeletingCat(cat);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingCat) return;
+    const { error } = await deleteCategoria(deletingCat.id);
     if (!error) {
-      setCats((prev) => (prev ?? []).filter((c) => c.id !== cat.id));
-      logAtividade("excluiu uma categoria", cat.name);
+      setCats((prev) => (prev ?? []).filter((c) => c.id !== deletingCat.id));
+      logAtividade("excluiu uma categoria", deletingCat.name);
     } else {
-      setErrorMsg("Erro ao excluir categoria.");
+      setErrorMsg(apiErrorMessage(error, "Erro ao excluir categoria."));
     }
+    setDeletingCat(null);
   };
 
   return (
@@ -203,6 +215,7 @@ export function AdminCategories() {
                     <th className="py-3.5 px-6">Descrição</th>
                     <th className="py-3.5 px-6">Criada em</th>
                     <th className="py-3.5 px-6">Atas vinculadas</th>
+                    <th className="py-3.5 px-6">Posição</th>
                     <th className="py-3.5 px-6 text-right">Ações</th>
                   </tr>
                 </thead>
@@ -226,6 +239,15 @@ export function AdminCategories() {
                         <td className="py-3.5 px-6">
                           <span className="px-2 py-1 bg-gray-100 rounded text-gray-600 font-semibold">{count} atas</span>
                         </td>
+                        <td className="py-3.5 px-6">
+                          {cat.mostrar_no_site && cat.ordem_site ? (
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-blue-700 font-bold text-xs">
+                              {cat.ordem_site}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300 text-xs">Fora da vitrine</span>
+                          )}
+                        </td>
                         <td className="py-3.5 px-6 text-right">
                           {isViewer ? (
                             <span className="text-gray-300 text-xs">—</span>
@@ -241,7 +263,7 @@ export function AdminCategories() {
                   })}
                   {filteredCats.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-12 text-center text-gray-400 text-sm">
+                      <td colSpan={6} className="py-12 text-center text-gray-400 text-sm">
                         {cats.length === 0 ? "Nenhuma categoria cadastrada ainda." : "Nenhuma categoria encontrada para os filtros selecionados."}
                       </td>
                     </tr>
@@ -335,6 +357,29 @@ export function AdminCategories() {
                 style={saved ? { backgroundColor: "#15803D" } : undefined}
               >
                 {submitting ? <Loader2 size={15} className="animate-spin" /> : saved ? <><Check size={15} /> Salvo!</> : "Salvar alterações"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmação de exclusão */}
+      {deletingCat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.4)" }}>
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 text-center">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={20} className="text-red-500" />
+            </div>
+            <h3 style={{ color: "#111827", fontWeight: 700, fontSize: "1rem" }} className="mb-2">Excluir categoria?</h3>
+            <p className="text-gray-400 text-sm mb-6">
+              Tem certeza que deseja excluir a categoria "{deletingCat.name}"? Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeletingCat(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer">
+                Cancelar
+              </button>
+              <button onClick={confirmDelete} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors cursor-pointer">
+                Excluir
               </button>
             </div>
           </div>

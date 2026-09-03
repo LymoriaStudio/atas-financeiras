@@ -10,6 +10,7 @@ import {
 import { logAtividade } from "../../../lib/api/atividadesService";
 import { useCachedResource } from "../../../lib/useCachedResource";
 import { LoadingSpinner } from "../LoadingSpinner";
+import { apiErrorMessage, isConflictFor } from "../../../lib/apiErrors";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -130,6 +131,16 @@ export function AdminUsuarios() {
     setEmailError("");
   };
 
+  // Repassa a mensagem real da API quando ela for informativa (ex: e-mail duplicado),
+  // em vez de sempre mostrar um genérico "tente novamente" que esconde a causa real.
+  const handleSaveError = (error: Error | null, acao: "criar" | "salvar") => {
+    if (isConflictFor(error, /e-?mail/i)) {
+      setEmailError("Este e-mail já está em uso por outro usuário.");
+      return;
+    }
+    setErrorMsg(apiErrorMessage(error, `Erro ao ${acao} usuário. Tente novamente.`));
+  };
+
   const saveForm = async () => {
     if (!form.full_name || !form.email) return;
     if (!EMAIL_REGEX.test(form.email)) {
@@ -150,14 +161,14 @@ export function AdminUsuarios() {
         setUsuarios((prev) => [data, ...(prev ?? [])]);
         logAtividade("cadastrou um novo usuário", form.full_name);
       }
-      else { setErrorMsg("Erro ao criar usuário. Tente novamente."); setSubmitting(false); return; }
+      else { handleSaveError(error, "criar"); setSubmitting(false); return; }
     } else if (modal === "edit" && editingId) {
       const { data, error } = await updateUsuario(editingId, form);
       if (!error && data) {
         setUsuarios((prev) => (prev ?? []).map((u) => (u.id === editingId ? data : u)));
         logAtividade("editou dados do usuário", data.full_name);
       }
-      else { setErrorMsg("Erro ao salvar alterações. Tente novamente."); setSubmitting(false); return; }
+      else { handleSaveError(error, "salvar"); setSubmitting(false); return; }
     }
 
     setSubmitting(false);

@@ -3,6 +3,7 @@ import { Search, ChevronDown, Eye, Download, ArrowRight, Loader2, FileX, X } fro
 import { getAtas, incrementDownloads, type Ata } from "../../lib/api/atasService";
 import { getCategorias, type Categoria } from "../../lib/api/categoriasService";
 import { logAtividade } from "../../lib/api/atividadesService";
+import { cacheGet, cacheSet } from "../../lib/apiCache";
 
 const PREVIEW_COUNT = 5;
 
@@ -87,7 +88,18 @@ export function SearchAndAtas({ onVerTodas }: Props) {
     a.download = file.nome;
     a.click();
     URL.revokeObjectURL(url);
-    await incrementDownloads(ata.id, ata.downloads_count ?? 0);
+    const { data, error } = await incrementDownloads(ata.id, ata.downloads_count ?? 0);
+    if (!error && data) {
+      setAtas((prev) => prev.map((a) => (a.id === ata.id ? data : a)));
+
+      // O painel admin (Relatórios, Dashboard etc.) guarda "atas" num cache em memória
+      // separado deste estado local — sem isso, o download feito aqui no site público
+      // não aparece lá até um refetch manual, mesmo já persistido no backend.
+      const cachedAtas = cacheGet<Ata[]>("atas");
+      if (cachedAtas) {
+        cacheSet("atas", cachedAtas.map((a) => (a.id === ata.id ? data : a)));
+      }
+    }
     const nome = nomeCategoria(ata);
     const categoriaLabel = nome ? ` da categoria ${nome}` : "";
     logAtividade(`Você teve 1 Download de documento${categoriaLabel}`, ata.titulo);

@@ -26,6 +26,7 @@ export function AdminLixeira() {
   const atas = atasData ?? [];
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [purgingAta, setPurgingAta] = useState<Ata | null>(null);
 
   async function handleRestore(ata: Ata) {
     if (!isAdmin) return;
@@ -44,9 +45,15 @@ export function AdminLixeira() {
     setBusyId(null);
   }
 
-  async function handlePurge(ata: Ata) {
+  function handlePurge(ata: Ata) {
     if (!isAdmin) return;
-    if (!confirm(`Atenção: a exclusão de "${ata.titulo}" será definitiva e irreversível. Deseja continuar?`)) return;
+    setPurgingAta(ata);
+  }
+
+  async function confirmPurge() {
+    if (!purgingAta) return;
+    const ata = purgingAta;
+    setPurgingAta(null);
     setBusyId(ata.id);
     const { error } = await purgeAta(ata.id);
     if (!error) {
@@ -152,6 +159,29 @@ export function AdminLixeira() {
         )}
       </div>
       </>
+      )}
+
+      {/* Confirmação de exclusão definitiva */}
+      {purgingAta && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.4)" }}>
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 text-center">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={20} className="text-red-500" />
+            </div>
+            <h3 style={{ color: "#111827", fontWeight: 700, fontSize: "1rem" }} className="mb-2">Excluir definitivamente?</h3>
+            <p className="text-gray-400 text-sm mb-6">
+              Tem certeza que deseja excluir "{purgingAta.titulo}"? Esta ação é irreversível — o documento não poderá ser recuperado.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setPurgingAta(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer">
+                Cancelar
+              </button>
+              <button onClick={confirmPurge} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors cursor-pointer">
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
