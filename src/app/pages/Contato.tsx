@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Mail, MapPin, Phone, ArrowRight } from "lucide-react";
 import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
+import { useNavigate } from "react-router";
 
 interface Props {
   onAdminClick?: () => void;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function Contato({ onAdminClick, onBack }: Props) {
+  const navigate = useNavigate();
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [mensagem, setMensagem] = useState("");
@@ -22,7 +24,7 @@ export function Contato({ onAdminClick, onBack }: Props) {
 
   return (
     <div className="min-h-screen w-full flex flex-col">
-      <Navbar onAdminClick={onAdminClick ?? (() => { })} isContato />
+      <Navbar onAdminClick={onAdminClick ?? (() => navigate("/login"))} isContato />
 
       <main className="flex-1 bg-gray-50 py-16 mt-15">
         <div className="max-w-5xl mx-auto px-6">
@@ -65,7 +67,7 @@ export function Contato({ onAdminClick, onBack }: Props) {
                   >
                     <Mail size={14} className="text-white" />
                   </div>
-                  <span className="text-gray-600 text-sm">contato@sistemaatas.com.br</span>
+                  <span className="text-gray-600 text-sm">dpo@gruposbssa.com.br</span>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -75,7 +77,7 @@ export function Contato({ onAdminClick, onBack }: Props) {
                   >
                     <MapPin size={14} className="text-white" />
                   </div>
-                  <span className="text-gray-600 text-sm">Americana - SP, Brasil</span>
+                  <span className="text-gray-600 text-sm">Rua Tamoio, nº 526, Anexo Comércio 01 – Vila Santa Catarina, Americana/SP – CEP 13.466-250</span>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -85,7 +87,7 @@ export function Contato({ onAdminClick, onBack }: Props) {
                   >
                     <Phone size={14} className="text-white" />
                   </div>
-                  <span className="text-gray-600 text-sm">(19) 99999-9999</span>
+                  <span className="text-gray-600 text-sm">+55 19 2108-2900</span>
                 </div>
               </div>
             </div>

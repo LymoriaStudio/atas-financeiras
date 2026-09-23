@@ -12,9 +12,9 @@ export function Lgpd() {
       ]}
       orgInfo={[
         { label: "Razão Social", value: "GRUPO SBS S.A." },
-        { label: "CNPJ", value: "12.345.678/0001-99" },
+        { label: "CNPJ", value: "46.639.876/0001-83" },
         { label: "Site", value: "www.gruposbs.com.br" },
-        { label: "E-mail", value: "lgpd@gruposbs.com.br" },
+        { label: "E-mail", value: "dpo@gruposbssa.com.br" },
       ]}
       sysInfo={[
         { label: "Sistema", value: "Portal Corporativo de Documentos" },

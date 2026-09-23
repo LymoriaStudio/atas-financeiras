@@ -196,7 +196,7 @@ const handleDownload = async (ata: Ata) => {
             Todas as Atas
           </h1>
           <p className="text-gray-400 text-sm">
-            Consulte o histórico completo de atas, documentos financeiros e estatutos da SBS Participações.
+            Consulte o histórico completo de atas, documentos financeiros e estatutos do Grupo SBS S/A.
           </p>
         </div>
 

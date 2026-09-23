@@ -88,10 +88,10 @@ export function Footer() {
                   aria-hidden="true"
                 />
                 <a
-                  href="mailto:contato@sistemaatas.com.br"
+                  href="mailto:dpo@gruposbssa.com.br"
                   className="text-gray-400 hover:text-white transition-colors text-sm"
                 >
-                  contato@sistemaatas.com.br
+                  dpo@gruposbssa.com.br
                 </a>
               </li>
 
@@ -102,10 +102,10 @@ export function Footer() {
                   aria-hidden="true"
                 />
                 <a
-                  href="tel:+5519999999999"
+                  href="tel:+551921082900"
                   className="text-gray-400 hover:text-white transition-colors text-sm"
                 >
-                  (19) 99999-9999
+                  +55 19 2108-2900
                 </a>
               </li>
 
@@ -116,7 +116,7 @@ export function Footer() {
                   aria-hidden="true"
                 />
                 <span className="text-gray-400 text-sm">
-                  Americana - SP, Brasil
+                  Rua Tamoio, nº 526, Anexo Comércio 01 – Vila Santa Catarina, Americana/SP – CEP 13.466-250
                 </span>
               </li>
             </ul>

@@ -73,7 +73,7 @@ export function AdminLogin() {
         style={{ backgroundColor: "#111827" }}
       >
         <div>
-          <img src={sbsLogo} alt="SBS Participações" style={{ height: "48px" }} />
+          <img src={sbsLogo} alt="Grupo SBS S/A" style={{ height: "48px" }} />
         </div>
 
         <div>
