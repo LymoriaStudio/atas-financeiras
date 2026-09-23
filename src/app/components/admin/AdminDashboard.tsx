@@ -17,13 +17,9 @@ function formatDate(iso?: string) {
   return new Date(iso).toLocaleDateString("pt-BR");
 }
 
-function getTipoStyle(tipo: string): { bg: string; text: string } {
-  const map: Record<string, { bg: string; text: string }> = {
-    Atas:       { bg: "#EFF6FF", text: "#1D4ED8" },
-    Financeiro: { bg: "#F0FDF4", text: "#15803D" },
-    Estatuto:   { bg: "#FDF4FF", text: "#7E22CE" },
-  };
-  return map[tipo] ?? { bg: "#F3F4F6", text: "#374151" };
+function categoriaStyle(cor?: string): { bg: string; text: string } {
+  const color = cor || "#374151";
+  return { bg: `${color}15`, text: color };
 }
 
 function toArray(raw: unknown): string[] {
@@ -70,9 +66,13 @@ export function AdminDashboard() {
   const atas = atasData ?? [];
   const categorias = categoriasData ?? [];
   const atividades = atividadesData ?? [];
+  const categoriaMap = Object.fromEntries(categorias.map((c) => [c.id, c]));
   const loading = atasLoading || catsLoading;
   const [refreshing, setRefreshing] = useState(false);
   const [selectedYear, setSelectedYear] = useState<"todos" | "2026" | "2025">("todos");
+  // ids de atividade cujo avatar do autor falhou ao carregar — cai pra iniciais nesse caso.
+  const [avatarErrors, setAvatarErrors] = useState<Set<string>>(new Set());
+  const markAvatarError = (id: string) => setAvatarErrors((prev) => new Set(prev).add(id));
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -85,7 +85,7 @@ export function AdminDashboard() {
     if (!file) return;
     // Contagem de downloads é só do site público — no painel só registra o log de atividade
     logAtividade("realizou download de", file.nome);
-    window.open(file.url, "_blank");
+    window.open(file.downloadUrl ?? file.url, "_blank");
   }
 
   // ── Filtro global de ano — afeta cards e gráficos ────────────────────────
@@ -360,8 +360,9 @@ export function AdminDashboard() {
               <div className="px-6 py-10 text-center text-gray-400 text-sm">Nenhuma ata cadastrada ainda.</div>
             ) : (
               recent.map((r) => {
-                const tipo = (r as any).tipo ?? "";
-                const cs = getTipoStyle(tipo);
+                const catId = (r as any).categoria_id?.[0];
+                const cat = catId ? categoriaMap[catId] : undefined;
+                const cs = categoriaStyle(cat?.color);
                 const hasFile = (r.arquivos?.length ?? 0) > 0;
                 return (
                   <div
@@ -378,12 +379,12 @@ export function AdminDashboard() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3 shrink-0 ml-4">
-                      {tipo && (
+                      {cat && (
                         <span
                           className="text-xs px-2.5 py-1 rounded-full font-medium hidden sm:inline-block"
                           style={{ backgroundColor: cs.bg, color: cs.text }}
                         >
-                          {tipo}
+                          {cat.name}
                         </span>
                       )}
                       <span className="text-gray-400 text-xs hidden sm:block">{formatDate(r.criado_em)}</span>
@@ -421,8 +422,8 @@ export function AdminDashboard() {
                 const color = AVATAR_COLORS[i % AVATAR_COLORS.length];
                 return (
                   <div key={a.id} className="flex gap-3">
-                    {avatarUrl ? (
-                      <img src={avatarUrl} alt={nome ?? ""} className="mt-0.5 w-7 h-7 rounded-full object-cover shrink-0 border border-gray-200" />
+                    {avatarUrl && !avatarErrors.has(a.id) ? (
+                      <img src={avatarUrl} alt={nome ?? ""} onError={() => markAvatarError(a.id)} className="mt-0.5 w-7 h-7 rounded-full object-cover shrink-0 border border-gray-200" />
                     ) : initials ? (
                       <div
                         className="mt-0.5 w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-white text-[10px] font-bold uppercase"

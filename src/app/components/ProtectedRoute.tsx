@@ -1,29 +1,22 @@
 // src/components/ProtectedRoute.tsx
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
-import { supabase } from "../../lib/supabase";
-import type { Session } from "@supabase/supabase-js";
+import { isAuthenticated, validateSession } from "../../lib/auth";
 
 export function ProtectedRoute() {
   const location = useLocation();
-  const [session, setSession] = useState<Session | null>(null);
+  const [authed, setAuthed] = useState(false);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    // pega a sessão atual (se já existir, ex: refresh da página)
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+    if (!isAuthenticated()) {
+      setChecking(false);
+      return;
+    }
+    validateSession().then((ok) => {
+      setAuthed(ok);
       setChecking(false);
     });
-
-    // escuta login/logout em tempo real
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => {
-      listener.subscription.unsubscribe();
-    };
   }, []);
 
   if (checking) {
@@ -34,7 +27,7 @@ export function ProtectedRoute() {
     );
   }
 
-  if (!session) {
+  if (!authed) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 

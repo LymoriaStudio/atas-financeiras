@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useOutletContext } from "react-router";
-import { Trash2, RefreshCw, FolderLock, FileText, Lock } from "lucide-react";
+import { Trash2, RefreshCw, FolderLock, FileText, Lock, ShieldAlert } from "lucide-react";
 import { getAtasLixeira, restoreAta, purgeAta, type Ata } from "../../../lib/api/atasService";
 import { logAtividade } from "../../../lib/api/atividadesService";
 import type { Usuario } from "../../../lib/api/usuarioService";
@@ -16,10 +16,17 @@ function formatDate(iso?: string | null) {
 export function AdminLixeira() {
   const { usuario } = useOutletContext<{ usuario: Usuario | null }>();
   const isAdmin = usuario?.role === "admin";
-  const { data: atasData, loading, error: fetchErr, setData: setAtas } = useCachedResource<Ata[]>("atas-lixeira", getAtasLixeira);
+  // Só admin pode ver a lixeira (API já bloqueia com 403) — evita nem chamar o endpoint
+  // se alguém não-admin cair aqui direto pela URL, sem passar pelo menu (que já esconde
+  // esse item pra quem não é admin).
+  const { data: atasData, loading, error: fetchErr, setData: setAtas } = useCachedResource<Ata[]>(
+    "atas-lixeira",
+    isAdmin ? getAtasLixeira : async () => ({ data: [], error: null })
+  );
   const atas = atasData ?? [];
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [purgingAta, setPurgingAta] = useState<Ata | null>(null);
 
   async function handleRestore(ata: Ata) {
     if (!isAdmin) return;
@@ -38,9 +45,15 @@ export function AdminLixeira() {
     setBusyId(null);
   }
 
-  async function handlePurge(ata: Ata) {
+  function handlePurge(ata: Ata) {
     if (!isAdmin) return;
-    if (!confirm(`Atenção: a exclusão de "${ata.titulo}" será definitiva e irreversível. Deseja continuar?`)) return;
+    setPurgingAta(ata);
+  }
+
+  async function confirmPurge() {
+    if (!purgingAta) return;
+    const ata = purgingAta;
+    setPurgingAta(null);
     setBusyId(ata.id);
     const { error } = await purgeAta(ata.id);
     if (!error) {
@@ -59,6 +72,16 @@ export function AdminLixeira() {
         <p className="text-gray-400 text-sm mt-1">Restaure ou elimine definitivamente atas excluídas</p>
       </div>
 
+      {!isAdmin ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 flex flex-col items-center text-center">
+          <ShieldAlert size={40} className="text-gray-300 mb-3" />
+          <p className="text-sm font-semibold text-gray-700">Acesso restrito</p>
+          <p className="text-xs text-gray-400 mt-1 max-w-sm">
+            A Lixeira é visível somente para administradores. Fale com um admin caso precise restaurar ou excluir algum documento.
+          </p>
+        </div>
+      ) : (
+        <>
       {(errorMsg || fetchErr) && (
         <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">
           {errorMsg ?? "Não foi possível carregar a lixeira. Tente novamente."}
@@ -135,6 +158,31 @@ export function AdminLixeira() {
           </div>
         )}
       </div>
+      </>
+      )}
+
+      {/* Confirmação de exclusão definitiva */}
+      {purgingAta && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.4)" }}>
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 text-center">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={20} className="text-red-500" />
+            </div>
+            <h3 style={{ color: "#111827", fontWeight: 700, fontSize: "1rem" }} className="mb-2">Excluir definitivamente?</h3>
+            <p className="text-gray-400 text-sm mb-6">
+              Tem certeza que deseja excluir "{purgingAta.titulo}"? Esta ação é irreversível — o documento não poderá ser recuperado.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setPurgingAta(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer">
+                Cancelar
+              </button>
+              <button onClick={confirmPurge} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors cursor-pointer">
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

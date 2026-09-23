@@ -5,7 +5,7 @@ import {
   LogOut, Menu, X, ChevronDown, ChevronRight, Bell,
   User, KeyRound, Trash2, ShieldCheck, BarChart3, Eye,
 } from "lucide-react";
-import { supabase } from "../../lib/supabase";
+import { logout } from "../../lib/auth";
 import { getUsuarioAtual, type Usuario } from "../../lib/api/usuarioService";
 import { getAtividadesRecentes, getNotificacoesVisualizadas, toggleNotificacaoVisualizada, type Atividade } from "../../lib/api/atividadesService";
 import { useCachedResource } from "../../lib/useCachedResource";
@@ -41,7 +41,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     items: [
       { label: "Atas",       path: "/admin/atas",       icon: <FileText className="w-4 h-4" /> },
       { label: "Categorias", path: "/admin/categorias", icon: <FolderTree className="w-4 h-4" /> },
-      { label: "Lixeira",    path: "/admin/lixeira",    icon: <Trash2 className="w-4 h-4" /> },
+      { label: "Lixeira",    path: "/admin/lixeira",    icon: <Trash2 className="w-4 h-4" />, adminOnly: true },
     ],
   },
   {
@@ -82,6 +82,7 @@ export function AdminPanel() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen,   setNotifOpen]   = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const { data: usuario } = useCachedResource<Usuario>("usuario-perfil", getUsuarioAtual);
   const { data: notificacoesData } = useCachedResource<Atividade[]>("atividades-6", () => getAtividadesRecentes(6));
   const notificacoes = notificacoesData ?? [];
@@ -98,8 +99,13 @@ export function AdminPanel() {
     loadVisualizadas();
   }, []);
 
+  // Reseta o estado de erro sempre que a URL do avatar mudar (ex: usuário trocou a foto).
+  useEffect(() => {
+    setAvatarError(false);
+  }, [usuario?.avatar_url]);
+
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await logout();
     navigate("/login");
   };
 
@@ -257,10 +263,11 @@ export function AdminPanel() {
                 className="flex items-center gap-2.5 pl-1 pr-2 py-1 rounded-full hover:bg-slate-50 transition-colors"
               >
                 {/* Avatar */}
-                {usuario?.avatar_url ? (
+                {usuario?.avatar_url && !avatarError ? (
                   <img
                     src={usuario.avatar_url}
                     alt={usuario.full_name ?? ""}
+                    onError={() => setAvatarError(true)}
                     className="w-9 h-9 rounded-full object-cover border border-slate-300"
                   />
                 ) : (

@@ -10,6 +10,7 @@ import {
 import { logAtividade } from "../../../lib/api/atividadesService";
 import { useCachedResource } from "../../../lib/useCachedResource";
 import { LoadingSpinner } from "../LoadingSpinner";
+import { apiErrorMessage, isConflictFor } from "../../../lib/apiErrors";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -65,6 +66,9 @@ export function AdminUsuarios() {
 
   const { data: usuariosData, loading, error: usuariosError, setData: setUsuarios } = useCachedResource<Usuario[]>("usuarios", getUsuarios);
   const usuarios = usuariosData ?? [];
+  // ids cujo avatar falhou ao carregar (imagem quebrada/removida) — mostra iniciais nesse caso.
+  const [avatarErrors, setAvatarErrors] = useState<Set<string>>(new Set());
+  const markAvatarError = (id: string) => setAvatarErrors((prev) => new Set(prev).add(id));
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -127,6 +131,16 @@ export function AdminUsuarios() {
     setEmailError("");
   };
 
+  // Repassa a mensagem real da API quando ela for informativa (ex: e-mail duplicado),
+  // em vez de sempre mostrar um genérico "tente novamente" que esconde a causa real.
+  const handleSaveError = (error: Error | null, acao: "criar" | "salvar") => {
+    if (isConflictFor(error, /e-?mail/i)) {
+      setEmailError("Este e-mail já está em uso por outro usuário.");
+      return;
+    }
+    setErrorMsg(apiErrorMessage(error, `Erro ao ${acao} usuário. Tente novamente.`));
+  };
+
   const saveForm = async () => {
     if (!form.full_name || !form.email) return;
     if (!EMAIL_REGEX.test(form.email)) {
@@ -147,14 +161,14 @@ export function AdminUsuarios() {
         setUsuarios((prev) => [data, ...(prev ?? [])]);
         logAtividade("cadastrou um novo usuário", form.full_name);
       }
-      else { setErrorMsg("Erro ao criar usuário. Tente novamente."); setSubmitting(false); return; }
+      else { handleSaveError(error, "criar"); setSubmitting(false); return; }
     } else if (modal === "edit" && editingId) {
       const { data, error } = await updateUsuario(editingId, form);
       if (!error && data) {
         setUsuarios((prev) => (prev ?? []).map((u) => (u.id === editingId ? data : u)));
         logAtividade("editou dados do usuário", data.full_name);
       }
-      else { setErrorMsg("Erro ao salvar alterações. Tente novamente."); setSubmitting(false); return; }
+      else { handleSaveError(error, "salvar"); setSubmitting(false); return; }
     }
 
     setSubmitting(false);
@@ -273,10 +287,10 @@ export function AdminUsuarios() {
                   <div className="col-span-4 flex items-center gap-3 min-w-0">
                     <div
                       className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                      style={{ backgroundColor: u.avatar_url ? "transparent" : rs.color }}
+                      style={{ backgroundColor: u.avatar_url && !avatarErrors.has(u.id) ? "transparent" : rs.color }}
                     >
-                      {u.avatar_url
-                        ? <img src={u.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover" />
+                      {u.avatar_url && !avatarErrors.has(u.id)
+                        ? <img src={u.avatar_url} alt="" onError={() => markAvatarError(u.id)} className="w-9 h-9 rounded-full object-cover" />
                         : getInitials(u.full_name)
                       }
                     </div>
@@ -342,8 +356,8 @@ export function AdminUsuarios() {
                         className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
                         style={{ backgroundColor: rs.color }}
                       >
-                        {u.avatar_url
-                          ? <img src={u.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                        {u.avatar_url && !avatarErrors.has(u.id)
+                          ? <img src={u.avatar_url} alt="" onError={() => markAvatarError(u.id)} className="w-10 h-10 rounded-full object-cover" />
                           : getInitials(u.full_name)
                         }
                       </div>
@@ -409,8 +423,8 @@ export function AdminUsuarios() {
                 className="w-14 h-14 rounded-full flex items-center justify-center text-white text-lg font-bold shrink-0"
                 style={{ backgroundColor: ROLE_STYLE[viewingUser.role]?.color ?? "#111827" }}
               >
-                {viewingUser.avatar_url
-                  ? <img src={viewingUser.avatar_url} alt="" className="w-14 h-14 rounded-full object-cover" />
+                {viewingUser.avatar_url && !avatarErrors.has(viewingUser.id)
+                  ? <img src={viewingUser.avatar_url} alt="" onError={() => markAvatarError(viewingUser.id)} className="w-14 h-14 rounded-full object-cover" />
                   : getInitials(viewingUser.full_name)
                 }
               </div>
@@ -586,16 +600,6 @@ export function AdminUsuarios() {
                     </button>
                   ))}
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">URL do avatar <span className="font-normal text-gray-400">(opcional)</span></label>
-                <input
-                  value={form.avatar_url}
-                  onChange={(e) => setForm({ ...form, avatar_url: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
-                />
               </div>
 
               {/* Preview */}

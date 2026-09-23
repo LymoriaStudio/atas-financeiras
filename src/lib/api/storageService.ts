@@ -1,43 +1,47 @@
-import { supabase } from "../supabase";
+import { apiDownloadUrl, apiFileUrl, apiUpload } from "./httpClient";
+import { fromDto, type UsuarioDto } from "./usuarioService";
 
-const BUCKET = "atas-files";
+interface AtaArquivoDto {
+  id: string;
+  nome: string;
+  contentType: string;
+  tamanhoBytes: number;
+  createdAt: string;
+  downloadUrl: string;
+}
 
-export async function uploadAtaFile(file: File) {
-  const fileExt = file.name.split(".").pop();
-  const filePath = `${crypto.randomUUID()}.${fileExt}`;
+// Diferente do Supabase Storage: aqui o arquivo é vinculado a uma ata que já existe
+// (o backend liga o arquivo pelo id da ata na URL), então precisa do ataId.
+export async function uploadAtaFile(ataId: string, file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
 
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(filePath, file, { cacheControl: "3600", upsert: false });
-
-  if (error) return { arquivo: null, error };
-
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
+  const { data, error } = await apiUpload<AtaArquivoDto>(`/api/atas/${ataId}/arquivos`, formData);
+  if (error || !data) return { arquivo: null, error };
 
   return {
-    arquivo: { nome: file.name, url: data.publicUrl, tamanho: file.size },
+    arquivo: {
+      nome: data.nome,
+      url: apiFileUrl(data.downloadUrl),
+      downloadUrl: apiDownloadUrl(data.downloadUrl),
+      tamanho: data.tamanhoBytes,
+    },
     error: null,
   };
 }
 
+// _userId fica só por compatibilidade de assinatura — o backend sempre troca o avatar
+// do usuário autenticado (via token), não aceita trocar o de outra pessoa por id.
+export async function uploadProfilePic(file: File, _userId: string) {
+  const formData = new FormData();
+  formData.append("file", file);
 
+  const { data, error } = await apiUpload<UsuarioDto>("/api/auth/avatar", formData);
+  if (error || !data) return { url: null, usuario: null, error };
 
-const BUCKET02 = "profile_pic";
+  const usuario = fromDto(data);
+  // Cache-busting: o navegador não sabe que o conteúdo por trás dessa URL mudou.
+  const url = usuario.avatar_url ? `${usuario.avatar_url}?t=${Date.now()}` : null;
 
-export async function uploadProfilePic(file: File, userId: string) {
-  const fileExt = file.name.split(".").pop();
-  const filePath = `${userId}.${fileExt}`;
-
-  const { error } = await supabase.storage
-    .from(BUCKET02)
-    .upload(filePath, file, { cacheControl: "3600", upsert: true });
-
-  if (error) return { url: null, error };
-
-  const { data } = supabase.storage.from(BUCKET02).getPublicUrl(filePath);
-
-  // Adiciona cache-busting para forçar reload da imagem
-  const url = `${data.publicUrl}?t=${Date.now()}`;
-
-  return { url, error: null };
+  return { url, usuario: { ...usuario, avatar_url: url ?? usuario.avatar_url }, error: null };
 }

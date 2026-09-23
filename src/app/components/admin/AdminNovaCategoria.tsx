@@ -9,6 +9,7 @@ import { createCategoria, type Categoria } from "../../../lib/api/categoriasServ
 import { logAtividade } from "../../../lib/api/atividadesService";
 import type { Usuario } from "../../../lib/api/usuarioService";
 import { cacheGet, cacheSet } from "../../../lib/apiCache";
+import { apiErrorMessage, isConflictFor } from "../../../lib/apiErrors";
 
 const ICONS = [
   "BarChart2","FileText","Gavel","Users","Building2","Calendar",
@@ -59,7 +60,11 @@ export function AdminNovaCategoria() {
     const { data, error } = await createCategoria({ name, description, icon, color, count: 0 });
 
     if (error || !data) {
-      setErrorMsg("Erro ao criar categoria. Tente novamente.");
+      setErrorMsg(
+        isConflictFor(error, /(nome|name)/i)
+          ? "Já existe uma categoria com esse nome. Escolha outro nome."
+          : apiErrorMessage(error, "Erro ao criar categoria. Tente novamente.")
+      );
       setSubmitting(false);
       return;
     }

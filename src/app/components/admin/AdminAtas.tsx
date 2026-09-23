@@ -14,14 +14,11 @@ import { useCachedResource } from "../../../lib/useCachedResource";
 import { cacheInvalidate } from "../../../lib/apiCache";
 import { LoadingSpinner } from "../LoadingSpinner";
 
-const TIPOS = ["Estatuto", "Financeiro", "Atas"];
-
 type ModalMode = "edit" | null;
 
 type FormState = {
   numero: string;
   titulo: string;
-  tipo: string;
   categoria_id: string[];
   descricao: string;
   data: string;
@@ -36,7 +33,6 @@ type FormState = {
 const emptyForm: FormState = {
   numero: "",
   titulo: "",
-  tipo: TIPOS[0],
   categoria_id: [],
   descricao: "",
   data: "",
@@ -214,7 +210,6 @@ export function AdminAtas() {
     setForm({
       numero: ata.numero,
       titulo: ata.titulo,
-      tipo: (ata as any).tipo ?? TIPOS[0],
       categoria_id: toArray((ata as any).categoria_id),
       descricao: ata.descricao,
       data: ata.data?.slice(0, 10) ?? "",
@@ -281,8 +276,8 @@ export function AdminAtas() {
 
     let arquivos = existingArquivos;
 
-    if (selectedFile) {
-      const { arquivo, error: uploadErr } = await uploadAtaFile(selectedFile);
+    if (selectedFile && editingId) {
+      const { arquivo, error: uploadErr } = await uploadAtaFile(editingId, selectedFile);
       if (uploadErr || !arquivo) {
         setUploadError("Erro ao enviar o arquivo. Tente novamente.");
         setSubmitting(false);
@@ -294,7 +289,6 @@ export function AdminAtas() {
     const payload = {
       numero: form.numero,
       titulo: form.titulo,
-      tipo: form.tipo,
       categoria_id: form.categoria_id,
       descricao: form.descricao,
       data: form.data,
@@ -831,7 +825,7 @@ export function AdminAtas() {
               <div className="flex items-center gap-2 shrink-0">
                 {viewingFile && (
                   <a
-                    href={viewingFile.url}
+                    href={viewingFile.downloadUrl ?? viewingFile.url}
                     download={viewingFile.nome}
                     target="_blank"
                     rel="noreferrer"

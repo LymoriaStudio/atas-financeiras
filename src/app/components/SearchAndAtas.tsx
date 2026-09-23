@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Search, ChevronDown, Eye, Download, ArrowRight, Loader2, FileX, X } from "lucide-react";
 import { getAtas, incrementDownloads, type Ata } from "../../lib/api/atasService";
+import { getCategorias, type Categoria } from "../../lib/api/categoriasService";
 import { logAtividade } from "../../lib/api/atividadesService";
+import { cacheGet, cacheSet } from "../../lib/apiCache";
 
 const PREVIEW_COUNT = 5;
 
@@ -15,20 +17,14 @@ interface Props {
   onVerTodas: () => void;
 }
 
-function getTipoStyle(tipo: string): { backgroundColor: string; color: string } {
-  const map: Record<string, { backgroundColor: string; color: string }> = {
-    "Atas":           { backgroundColor: "#EFF6FF", color: "#3B82F6" },
-    "Financeiro":     { backgroundColor: "#F0FDF4", color: "#22C55E" },
-    "Estatuto":       { backgroundColor: "#FAF5FF", color: "#A855F7" },
-    "Administrativo": { backgroundColor: "#FFF7ED", color: "#F97316" },
-    "Contratos":      { backgroundColor: "#FFF1F2", color: "#F43F5E" },
-    "Reuniões":       { backgroundColor: "#F0FDFA", color: "#14B8A6" },
-  };
-  return map[tipo] ?? { backgroundColor: "#11182715", color: "#111827" };
+function categoriaStyle(cor?: string): { backgroundColor: string; color: string } {
+  const color = cor || "#111827";
+  return { backgroundColor: `${color}15`, color };
 }
 
 export function SearchAndAtas({ onVerTodas }: Props) {
   const [atas, setAtas] = useState<Ata[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewingAta, setViewingAta] = useState<Ata | null>(null);
 
@@ -40,21 +36,24 @@ export function SearchAndAtas({ onVerTodas }: Props) {
 
   async function fetchData() {
     setLoading(true);
-    const atasRes = await getAtas();
+    const [atasRes, categoriasRes] = await Promise.all([getAtas(), getCategorias()]);
     if (!atasRes.error && atasRes.data) {
       setAtas(atasRes.data.filter((a) => a.status === "Publicado"));
     }
+    if (!categoriasRes.error && categoriasRes.data) {
+      setCategorias(categoriasRes.data);
+    }
     setLoading(false);
   }
+
+  const categoriaMap = Object.fromEntries(categorias.map((c) => [c.id, c]));
+  const nomeCategoria = (a: Ata) => (a.categoria_id[0] ? categoriaMap[a.categoria_id[0]]?.name : undefined);
 
   const YEARS = ["Todos os anos", ...Array.from(
     new Set(atas.map((a) => a.data?.slice(0, 4)).filter(Boolean))
   ).sort((a, b) => b.localeCompare(a))];
 
-  const CATEGORIES = [
-    "Todas as categorias",
-    ...Array.from(new Set(atas.map((a) => (a as any).tipo).filter(Boolean))).sort(),
-  ];
+  const CATEGORIES = ["Todas as categorias", ...categorias.map((c) => c.name).sort()];
 
   const isFiltering = query !== "" || year !== "Todos os anos" || category !== "Todas as categorias";
 
@@ -62,8 +61,7 @@ export function SearchAndAtas({ onVerTodas }: Props) {
     const q = query.toLowerCase();
     const matchQ = q === "" || a.titulo.toLowerCase().includes(q) || a.numero.toLowerCase().includes(q);
     const matchY = year === "Todos os anos" || a.data?.slice(0, 4) === year;
-    const tipo = (a as any).tipo ?? "";
-    const matchCat = category === "Todas as categorias" || tipo === category;
+    const matchCat = category === "Todas as categorias" || nomeCategoria(a) === category;
     return matchQ && matchY && matchCat;
   });
 
@@ -90,8 +88,20 @@ export function SearchAndAtas({ onVerTodas }: Props) {
     a.download = file.nome;
     a.click();
     URL.revokeObjectURL(url);
-    await incrementDownloads(ata.id, ata.downloads_count ?? 0);
-    const categoriaLabel = ata.tipo ? ` da categoria ${ata.tipo}` : "";
+    const { data, error } = await incrementDownloads(ata.id, ata.downloads_count ?? 0);
+    if (!error && data) {
+      setAtas((prev) => prev.map((a) => (a.id === ata.id ? data : a)));
+
+      // O painel admin (Relatórios, Dashboard etc.) guarda "atas" num cache em memória
+      // separado deste estado local — sem isso, o download feito aqui no site público
+      // não aparece lá até um refetch manual, mesmo já persistido no backend.
+      const cachedAtas = cacheGet<Ata[]>("atas");
+      if (cachedAtas) {
+        cacheSet("atas", cachedAtas.map((a) => (a.id === ata.id ? data : a)));
+      }
+    }
+    const nome = nomeCategoria(ata);
+    const categoriaLabel = nome ? ` da categoria ${nome}` : "";
     logAtividade(`Você teve 1 Download de documento${categoriaLabel}`, ata.titulo);
   };
 
@@ -180,7 +190,8 @@ export function SearchAndAtas({ onVerTodas }: Props) {
             </div>
           ) : (
             displayed.map((ata) => {
-              const tipo = (ata as any).tipo ?? "";
+              const categoriaId = ata.categoria_id[0];
+              const categoriaAta = categoriaId ? categoriaMap[categoriaId] : undefined;
               const file = getLatestFile(ata);
               return (
                 <div key={ata.id} className="border-b border-gray-50 last:border-0">
@@ -189,9 +200,9 @@ export function SearchAndAtas({ onVerTodas }: Props) {
                     <div className="col-span-3 text-gray-800 text-sm font-medium">{ata.numero}</div>
                     <div className="col-span-4 text-gray-500 text-sm truncate pr-4">{ata.titulo}</div>
                     <div className="col-span-2 flex flex-wrap gap-1">
-                      {tipo ? (
-                        <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium" style={getTipoStyle(tipo)}>
-                          {tipo}
+                      {categoriaAta ? (
+                        <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium" style={categoriaStyle(categoriaAta.color)}>
+                          {categoriaAta.name}
                         </span>
                       ) : (
                         <span className="text-gray-300 text-xs">—</span>
@@ -246,9 +257,9 @@ export function SearchAndAtas({ onVerTodas }: Props) {
                     </div>
                     <div className="flex items-center justify-between gap-2 mt-2">
                       <div className="flex flex-wrap gap-1">
-                        {tipo ? (
-                          <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium" style={getTipoStyle(tipo)}>
-                            {tipo}
+                        {categoriaAta ? (
+                          <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium" style={categoriaStyle(categoriaAta.color)}>
+                            {categoriaAta.name}
                           </span>
                         ) : (
                           <span className="text-gray-300 text-xs">—</span>

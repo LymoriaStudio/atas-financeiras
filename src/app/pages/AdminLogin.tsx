@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Lock, Mail, ArrowLeft } from "lucide-react";
 import sbsLogo from "../../imports/sbslogo.png";
-import { supabase } from "../../lib/supabase";
+import { login } from "../../lib/auth";
 import { useNavigate } from "react-router";
 import { getAtas } from "../../lib/api/atasService";
 import { getCategorias } from "../../lib/api/categoriasService";
@@ -41,10 +41,7 @@ export function AdminLogin() {
     try {
       setLoading(true);
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error } = await login(email, password);
 
       if (error) {
         setError("E-mail ou senha incorretos.");
